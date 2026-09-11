@@ -849,108 +849,141 @@
 
         // 2. Chuyển UUID 16-bit sang dạng chuỗi chuẩn 128-bit Base UUID của Bluetooth SIG
         // 0xff00 -> 0000ff00-0000-1000-8000-00805f9b34fb
-        device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: [
-            '0000ff00-0000-1000-8000-00805f9b34fb',
-            '0000221f-0000-1000-8000-00805f9b34fb',
-            '00001f10-0000-1000-8000-00805f9b34fb',
-            '13187b10-eba9-a3ba-044e-83d3217d9a38'
-          ]
-        });
-        console.log('Tên thiết bị:', device.name);
-        document.getElementById('device_name').textContent = device.name;
-        device.ongattserverdisconnected = onDisconnect;
-
-        let server = await device.gatt.connect();
-        console.log('Đã kết nối thiết bị');
-
-        // Thử tìm service theo thứ tự ưu tiên
-        let service = null;
-        const serviceUUIDs = [
+        // Tạo danh sách UUID service rộng để thiết bị DLG-CLOCK có thể hiện
+        const baseUUID = '00000000-0000-1000-8000-00805f9b34fb';
+        const optionalUUIDs = [
+          // Các UUID từ code gốc và Democode
           '0000ff00-0000-1000-8000-00805f9b34fb',
           '0000221f-0000-1000-8000-00805f9b34fb',
           '00001f10-0000-1000-8000-00805f9b34fb',
-          '13187b10-eba9-a3ba-044e-83d3217d9a38'
+          '13187b10-eba9-a3ba-044e-83d3217d9a38',
+          // Standard BLE services
+          '00001800-0000-1000-8000-00805f9b34fb',  // Generic Access
+          '00001801-0000-1000-8000-00805f9b34fb',  // Generic Attribute
+          // Thêm dải UUID 0x18xx - 0xFFxx phổ biến
         ];
-        for (const uuid of serviceUUIDs) {
-          try {
-            service = await server.getPrimaryService(uuid);
-            console.log('Đã tìm thấy service:', uuid);
-            break;
-          } catch (e) {
-            console.log('Service', uuid, 'không tồn tại, thử tiếp...');
-          }
+        // Bổ sung thêm các UUID từ 0x1800 đến 0x18FF (Standard BLE Services)
+        for (let i = 0x1800; i <= 0x18FF; i++) {
+          optionalUUIDs.push('0000' + i.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
         }
-        if (!service) throw new Error('Không tìm thấy service Bluetooth nào phù hợp!');
-
-        // Tìm characteristic phù hợp
-        let ctrlPoint = null, adc1Value = null, longValueChar = null;
-        const charUUIDs = [
-          '0000ff03-0000-1000-8000-00805f9b34fb',
-          '0000ff02-0000-1000-8000-00805f9b34fb',
-          '0000ff01-0000-1000-8000-00805f9b34fb',
-          '00001f1f-0000-1000-8000-00805f9b34fb',
-          '4b646063-6264-f3a7-8941-e65356ea82fe'
-        ];
-        for (const uuid of charUUIDs) {
-          try {
-            const ch = await service.getCharacteristic(uuid);
-            if (!ctrlPoint) ctrlPoint = ch;
-            else if (!adc1Value) adc1Value = ch;
-            else if (!longValueChar) longValueChar = ch;
-            console.log('Đã tìm thấy characteristic:', uuid);
-          } catch (e) {}
+        // Bổ sung thêm UUID 0xFF00 - 0xFFFF (Vendor Specific)
+        for (let i = 0xFF00; i <= 0xFFFF; i++) {
+          optionalUUIDs.push('0000' + i.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
         }
-        if (longValueChar) longValue = longValueChar;
-
-        // Đọc điện áp nếu có characteristic phù hợp
-        if (adc1Value) {
-          try {
-            let cur_voltage = await adc1Value.readValue();
-            console.log('Điện áp hiện tại:', cur_voltage.getUint16(0, true) / 1000 + 'V');
-            document.getElementById('current_voltage').textContent = (cur_voltage.getUint16(0, true) / 1000).toFixed(2) + ' V';
-          } catch (e) {}
+        // UUID 0x221F, 0x1F10, 0x1F1F, 0x28FF
+        for (const extra of [0x221F, 0x1F10, 0x1F1F, 0x28FF]) {
+          optionalUUIDs.push('0000' + extra.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
         }
 
-        // Đọc thời gian và firmware version
-        if (longValue) {
-          let cur_time = await longValue.readValue();
-          let year = cur_time.getUint16(0, true),
-              month = cur_time.getUint8(2),
-              mday = cur_time.getUint8(3),
-              hour = cur_time.getUint8(4),
-              minute = cur_time.getUint8(5),
-              second = cur_time.getUint8(6);
-
-          let fwVersionText = "0.7";
-          if (cur_time.byteLength >= 13) {
-              let major = cur_time.getUint8(11);
-              let minor = cur_time.getUint8(12);
-              fwVersionText = `${major}.${minor}`;
-          }
-          document.getElementById('device_fw_version').textContent = fwVersionText;
-
-          deviceTimeBase = {
-            year, month, mday, hour, minute, second,
-            timestamp: new Date()
-          };
-
-          updateDeviceTime();
-          if (deviceTimeInterval) clearInterval(deviceTimeInterval);
-          deviceTimeInterval = setInterval(updateDeviceTime, 1000);
-        }
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: optionalUUIDs
+        });
         console.log('Tên thiết bị:', device.name);
         document.getElementById('device_name').textContent = device.name;
-        device.ongattserverdisconnected = onDisconnect;
+        device.addEventListener('gattserverdisconnected', onDisconnect);
 
         let server = await device.gatt.connect();
         console.log('Đã kết nối thiết bị');
 
-        let service = await server.getPrimaryService(SVC_UUID);
-        let ctrlPoint = await service.getCharacteristic(CHAR_CTRL);
-        let adc1Value = await service.getCharacteristic(CHAR_ADC);
-        longValue = await service.getCharacteristic(CHAR_LONG);
+        // Quét tất cả services trên thiết bị
+        let allServices = [];
+        let allCharacteristics = [];
+        let foundService = null;
+
+        // Thử tìm service bằng cách quét qua tất cả UUID đã list
+        console.log('Đang quét services trên thiết bị...');
+        for (const uuid of optionalUUIDs) {
+          try {
+            const svc = await server.getPrimaryService(uuid);
+            allServices.push(uuid);
+            foundService = svc;
+            console.log('✓ Service tìm thấy:', uuid);
+
+            // Quét characteristics trong service này
+            try {
+              const chars = await svc.getCharacteristics();
+              for (const ch of chars) {
+                allCharacteristics.push(ch.uuid);
+                console.log('  → Characteristic:', ch.uuid);
+              }
+            } catch (e) {}
+          } catch (e) {
+            // Bỏ qua, service không tồn tại
+          }
+        }
+
+        if (allServices.length === 0) {
+          throw new Error('Không tìm thấy service Bluetooth nào trên thiết bị!');
+        }
+
+        console.log('Tổng số services tìm thấy:', allServices.length);
+        console.log('Services:', allServices.join(', '));
+        console.log('Characteristics:', allCharacteristics.join(', '));
+
+        // Ưu tiên tìm characteristic có thể đọc/ghi dữ liệu
+        // Tìm service cuối cùng tìm thấy (thường là service data)
+        foundService = await server.getPrimaryService(allServices[allServices.length - 1]);
+        const chars = await foundService.getCharacteristics();
+
+        for (const ch of chars) {
+          const props = ch.properties;
+          if (props.read && props.write) {
+            longValue = ch;
+            console.log('Sử dụng characteristic (R/W):', ch.uuid);
+          } else if (props.writeWithoutResponse || props.write) {
+            if (!longValue) longValue = ch;
+          } else if (props.read) {
+            // Thử đọc xem có phải time/voltage không
+            try {
+              const val = await ch.readValue();
+              if (val.byteLength >= 7) {
+                // Có thể là time data
+                longValue = ch;
+                console.log('Sử dụng characteristic (đọc được data):', ch.uuid);
+              }
+            } catch (e) {}
+          }
+        }
+
+        if (!longValue && chars.length > 0) {
+          longValue = chars[0];
+          console.log('Fallback sử dụng characteristic đầu tiên:', chars[0].uuid);
+        }
+
+        // Đọc dữ liệu từ longValue
+        if (longValue) {
+          try {
+            let cur_time = await longValue.readValue();
+            console.log('Dữ liệu đọc được:', bytesToHex(cur_time));
+
+            let year = cur_time.getUint16(0, true),
+                month = cur_time.getUint8(2),
+                mday = cur_time.getUint8(3),
+                hour = cur_time.getUint8(4),
+                minute = cur_time.getUint8(5),
+                second = cur_time.getUint8(6);
+
+            let fwVersionText = "N/A";
+            if (cur_time.byteLength >= 13) {
+                let major = cur_time.getUint8(11);
+                let minor = cur_time.getUint8(12);
+                fwVersionText = `${major}.${minor}`;
+            }
+            document.getElementById('device_fw_version').textContent = fwVersionText;
+
+            deviceTimeBase = {
+              year, month, mday, hour, minute, second,
+              timestamp: new Date()
+            };
+
+            updateDeviceTime();
+            if (deviceTimeInterval) clearInterval(deviceTimeInterval);
+            deviceTimeInterval = setInterval(updateDeviceTime, 1000);
+          } catch (e) {
+            console.log('Không đọc được dữ liệu:', e.message);
+          }
+        }
 
         connected = true;
         let now = new Date();
