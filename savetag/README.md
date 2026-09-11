@@ -102,7 +102,7 @@ Nếu có output → chip còn sống → dùng phần mềm flash:
 ST-Link V2            Thẻ e-ink
 ─────────────         ──────────
 SWDIO  ────────────   SWDIO
-SWCLK  ────────────   SWDIO
+SWCLK  ────────────   SWCLK
 GND    ────────────   GND
 3.3V   ────────────   VBAT (hoặc cấp riêng)
 ```
