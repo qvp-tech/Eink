@@ -129,12 +129,12 @@ ESP32-C3 Super Mini          Thẻ e-ink
 GPIO21 (TX)  ─────────────→  VRX
 GPIO20 (RX)  ←─────────────  VTX
 GND          ─────────────→  GND
-                               (KHÔNG nối 5V/3.3V)
 ```
 
 ⚠️ **Quan trọng:**
 - **KHÔNG** nối 5V hay 3.3V từ ESP32-C3 sang thẻ e-ink
-- Chỉ nối **TX, RX, GND** (3 dây thôi)
+- Thẻ e-ink **PHẢI có nguồn** (giữ nguyên pin hoặc cấp 3.3V ngoài + nối chung GND)
+- Nếu tháo pin thẻ e-ink mà chỉ nối TX/RX/GND → thẻ mất điện hoàn toàn → không hoạt động
 
 #### Bước 1: Cài Arduino IDE
 1. Tải: https://www.arduino.cc/en/software
@@ -145,8 +145,19 @@ https://espressif.github.io/arduino-esp32/package_esp32_index.json
 ```
 4. **Tools → Board → Board Manager** → tìm **esp32** → cài **esp32 by Espressif**
 
-#### Bước 2: Nạp sketch UART Bridge
-Chọn board: **Tools → Board → ESP32C3 Dev Module**
+#### Bước 2: Cấu hình Arduino IDE (QUAN TRỌNG)
+
+**Tools → USB CDC On Boot: Enabled**
+
+> Phải bật tùy chọn này để `Serial` (USB) không bị trùng GPIO20/21 với `Serial1`.
+> Nếu không bật → Serial và Serial1 dùng chung UART0 → xung đột, dữ liệu bị trộn.
+
+Các tùy chọn khác:
+- **Board**: ESP32C3 Dev Module
+- **Upload Speed**: 921600
+- **Flash Mode**: DIO
+
+#### Bước 3: Nạp sketch UART Bridge
 
 ```cpp
 // UART Bridge - ESP32-C3 Super Mini
@@ -154,20 +165,21 @@ Chọn board: **Tools → Board → ESP32C3 Dev Module**
 
 #define RX_PIN 20  // GPIO20 RX
 #define TX_PIN 21  // GPIO21 TX
+#define LED_PIN 8  // GPIO8 = LED onboard (Active LOW)
 #define BAUD  115200
 
 void setup() {
-  Serial.begin(BAUD);        // USB Serial (máy tính)
+  Serial.begin(BAUD);        // USB CDC (máy tính)
   Serial1.begin(BAUD, SERIAL_8N1, RX_PIN, TX_PIN); // UART thẻ e-ink
-  pinMode(2, OUTPUT);
-  digitalWrite(2, HIGH); // LED sáng = đang bridge
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW); // LED sáng (Active LOW)
 }
 
 void loop() {
   // Máy tính → Thẻ e-ink
   if (Serial.available()) {
     Serial1.write(Serial.read());
-    digitalWrite(2, !digitalRead(2)); // nhấp nháy LED
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // nhấp nháy LED
   }
   // Thẻ e-ink → Máy tính
   if (Serial1.available()) {
@@ -176,13 +188,13 @@ void loop() {
 }
 ```
 
-#### Bước 3: Mở Serial Monitor
+#### Bước 4: Mở Serial Monitor
 1. **Tools → Port** → chọn COM của ESP32-C3
 2. **Tools → Serial Monitor** → chọn **115200 baud**
 3. Bấm **RST** trên thẻ e-ink
 4. Xem có text hiện ra không?
 
-#### Bước 4: Flash firmware
+#### Bước 5: Flash firmware
 Nếu Serial Monitor hiện text → chip còn sống!
 Dùng **ESP Flash Download Tool** hoặc **STM32CubeProgrammer** để flash.
 
