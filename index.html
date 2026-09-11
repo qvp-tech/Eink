@@ -837,160 +837,134 @@
     }
 
     // 连接设备
+    var deviceType = null; // 'ONE' hoặc 'DLG' hoặc 'OTHER'
+
     async function connectToDevice() {
       try {
-        // 更新按钮状态
         const connectButton = document.getElementById('connect-button');
-        // connectButton.disabled = true;
         connectButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang kết nối...';
-
         console.log('Đang yêu cầu kết nối thiết bị...');
-
-
-        // 2. Chuyển UUID 16-bit sang dạng chuỗi chuẩn 128-bit Base UUID của Bluetooth SIG
-        // 0xff00 -> 0000ff00-0000-1000-8000-00805f9b34fb
-        // Tạo danh sách UUID service rộng để thiết bị DLG-CLOCK có thể hiện
-        const baseUUID = '00000000-0000-1000-8000-00805f9b34fb';
-        const optionalUUIDs = [
-          // Các UUID từ code gốc và Democode
-          '0000ff00-0000-1000-8000-00805f9b34fb',
-          '0000221f-0000-1000-8000-00805f9b34fb',
-          '00001f10-0000-1000-8000-00805f9b34fb',
-          '13187b10-eba9-a3ba-044e-83d3217d9a38',
-          // Standard BLE services
-          '00001800-0000-1000-8000-00805f9b34fb',  // Generic Access
-          '00001801-0000-1000-8000-00805f9b34fb',  // Generic Attribute
-          // Thêm dải UUID 0x18xx - 0xFFxx phổ biến
-        ];
-        // Bổ sung thêm các UUID từ 0x1800 đến 0x18FF (Standard BLE Services)
-        for (let i = 0x1800; i <= 0x18FF; i++) {
-          optionalUUIDs.push('0000' + i.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
-        }
-        // Bổ sung thêm UUID 0xFF00 - 0xFFFF (Vendor Specific)
-        for (let i = 0xFF00; i <= 0xFFFF; i++) {
-          optionalUUIDs.push('0000' + i.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
-        }
-        // UUID 0x221F, 0x1F10, 0x1F1F, 0x28FF
-        for (const extra of [0x221F, 0x1F10, 0x1F1F, 0x28FF]) {
-          optionalUUIDs.push('0000' + extra.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb');
-        }
 
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: optionalUUIDs
+          optionalServices: [
+            '0000ff00-0000-1000-8000-00805f9b34fb',
+            '00001f10-0000-1000-8000-00805f9b34fb',
+            '13187b10-eba9-a3ba-044e-83d3217d9a38',
+          ]
         });
-        console.log('Tên thiết bị:', device.name);
-        document.getElementById('device_name').textContent = device.name;
+
+        const devName = device.name || '';
+        document.getElementById('device_name').textContent = devName;
         device.addEventListener('gattserverdisconnected', onDisconnect);
+        console.log('Tên thiết bị:', devName);
 
         let server = await device.gatt.connect();
-        console.log('Đã kết nối thiết bị');
+        console.log('Đã kết nối GATT server');
 
-        // Quét tất cả services trên thiết bị
-        let allServices = [];
-        let allCharacteristics = [];
-        let foundService = null;
-
-        // Thử tìm service bằng cách quét qua tất cả UUID đã list
-        console.log('Đang quét services trên thiết bị...');
-        for (const uuid of optionalUUIDs) {
-          try {
-            const svc = await server.getPrimaryService(uuid);
-            allServices.push(uuid);
-            foundService = svc;
-            console.log('✓ Service tìm thấy:', uuid);
-
-            // Quét characteristics trong service này
-            try {
-              const chars = await svc.getCharacteristics();
-              for (const ch of chars) {
-                allCharacteristics.push(ch.uuid);
-                console.log('  → Characteristic:', ch.uuid);
-              }
-            } catch (e) {}
-          } catch (e) {
-            // Bỏ qua, service không tồn tại
-          }
-        }
-
-        if (allServices.length === 0) {
-          throw new Error('Không tìm thấy service Bluetooth nào trên thiết bị!');
-        }
-
-        console.log('Tổng số services tìm thấy:', allServices.length);
-        console.log('Services:', allServices.join(', '));
-        console.log('Characteristics:', allCharacteristics.join(', '));
-
-        // Ánh xạ đúng theo protocol thiết bị:
-        // rxtxService (0x1f10) → rxtxCharacteristic (0x1f1f) → GHI lệnh
-        // epdService (0x13187b10) → epdCharacteristic (0x4b646063) → ĐỌC/NHẬN dữ liệu
-        let rxtxCharacteristic = null;
-        let epdCharacteristic = null;
-
+        // === PHÁT HIỆN LOẠI THIẾT BỊ ===
+        // Thử service ONE-2.13L trước (0xff00)
+        let svcFF00 = null;
         try {
-          const rxtxService = await server.getPrimaryService('00001f10-0000-1000-8000-00805f9b34fb');
-          rxtxCharacteristic = await rxtxService.getCharacteristic('00001f1f-0000-1000-8000-00805f9b34fb');
-          console.log('✓ rxtxCharacteristic (0x1f1f) - sẵn sàng GHI lệnh');
-        } catch (e) {
-          console.log('Không tìm thấy rxtxCharacteristic:', e.message);
-        }
+          svcFF00 = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+        } catch (e) {}
 
+        // Thử service DLG/Democode (0x1f10 + 0x13187b10)
+        let svc1F10 = null;
+        let svcEPD = null;
         try {
-          const epdService = await server.getPrimaryService('13187b10-eba9-a3ba-044e-83d3217d9a38');
-          epdCharacteristic = await epdService.getCharacteristic('4b646063-6264-f3a7-8941-e65356ea82fe');
-          console.log('✓ epdCharacteristic (0x4b646063) - sẵn sàng ĐỌC/NHẬN dữ liệu');
+          svc1F10 = await server.getPrimaryService('00001f10-0000-1000-8000-00805f9b34fb');
+          svcEPD = await server.getPrimaryService('13187b10-eba9-a3ba-044e-83d3217d9a38');
+        } catch (e) {}
 
-          // Bật nhận thông báo từ thiết bị
-          await epdCharacteristic.startNotifications();
-          epdCharacteristic.addEventListener('characteristicvaluechanged', function (event) {
-            const data = new Uint8Array(event.target.value.buffer);
-            console.log('→ Nhận từ thiết bị:', bytesToHex(data));
-          });
-        } catch (e) {
-          console.log('Không tìm thấy epdCharacteristic:', e.message);
-        }
+        if (svcFF00) {
+          // ===== THIẾT BỊ TYPE: ONE-2.13L (service 0xff00) =====
+          deviceType = 'ONE';
+          console.log('✓ Phát hiện thiết bị ONE-2.13L (service 0xFF00)');
 
-        // Gán biến toàn cục để các hàm khác dùng
-        longValue = rxtxCharacteristic || epdCharacteristic;
+          const charADC   = await svcFF00.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+          const charLong  = await svcFF00.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
+          longValue = charLong;
 
-        if (!longValue) {
-          throw new Error('Không tìm thấy characteristic nào để giao tiếp!');
-        }
-
-        // Đọc dữ liệu từ EPD characteristic (nếu có)
-        if (epdCharacteristic) {
+          // Đọc điện áp
           try {
-            let cur_time = await epdCharacteristic.readValue();
-            console.log('Dữ liệu EPD đọc được:', bytesToHex(cur_time));
+            let cur_voltage = await charADC.readValue();
+            document.getElementById('current_voltage').textContent = (cur_voltage.getUint16(0, true) / 1000).toFixed(2) + ' V';
+          } catch (e) {}
 
-            if (cur_time.byteLength >= 7) {
-              let year = cur_time.getUint16(0, true),
-                  month = cur_time.getUint8(2),
-                  mday = cur_time.getUint8(3),
-                  hour = cur_time.getUint8(4),
-                  minute = cur_time.getUint8(5),
-                  second = cur_time.getUint8(6);
+          // Đọc thời gian & firmware
+          try {
+            let cur_time = await longValue.readValue();
+            let year = cur_time.getUint16(0, true),
+                month = cur_time.getUint8(2), mday = cur_time.getUint8(3),
+                hour = cur_time.getUint8(4), minute = cur_time.getUint8(5),
+                second = cur_time.getUint8(6);
 
-              let fwVersionText = "N/A";
-              if (cur_time.byteLength >= 13) {
-                  let major = cur_time.getUint8(11);
-                  let minor = cur_time.getUint8(12);
-                  fwVersionText = `${major}.${minor}`;
-              }
-              document.getElementById('device_fw_version').textContent = fwVersionText;
-
-              deviceTimeBase = {
-                year, month, mday, hour, minute, second,
-                timestamp: new Date()
-              };
-
-              updateDeviceTime();
-              if (deviceTimeInterval) clearInterval(deviceTimeInterval);
-              deviceTimeInterval = setInterval(updateDeviceTime, 1000);
+            let fwVersionText = "0.7";
+            if (cur_time.byteLength >= 13) {
+              fwVersionText = `${cur_time.getUint8(11)}.${cur_time.getUint8(12)}`;
             }
+            document.getElementById('device_fw_version').textContent = fwVersionText;
+
+            deviceTimeBase = { year, month, mday, hour, minute, second, timestamp: new Date() };
+            updateDeviceTime();
+            if (deviceTimeInterval) clearInterval(deviceTimeInterval);
+            deviceTimeInterval = setInterval(updateDeviceTime, 1000);
           } catch (e) {
-            console.log('Không đọc được EPD data:', e.message);
+            console.log('Lỗi đọc dữ liệu ONE:', e.message);
           }
+
+          // Bật TOÀN BỘ nút cho ONE-2.13L
+          document.getElementById('setime-button').disabled = false;
+          document.getElementById('upfirm-button').disabled = false;
+          document.getElementById('send90-button').disabled = false;
+          document.getElementById('calibration-button').disabled = false;
+          ['setime-button','upfirm-button','send90-button','calibration-button'].forEach(id => {
+            document.getElementById(id).classList.remove('opacity-50', 'cursor-not-allowed');
+          });
+          enableWatchFaceButtons();
+          setFirmwareButtonsState(true);
+
+        } else if (svc1F10 || svcEPD) {
+          // ===== THIẾT BỊ TYPE: DLG-CLOCK / các thiết bị BLE khác =====
+          deviceType = 'DLG';
+          console.log('✓ Phát hiện thiết bị BLE khác (DLG-CLOCK hoặc tương tự)');
+
+          // rxtxCharacteristic (0x1f1f) - GHI lệnh
+          if (svc1F10) {
+            try {
+              longValue = await svc1F10.getCharacteristic('00001f1f-0000-1000-8000-00805f9b34fb');
+              console.log('✓ rxtxCharacteristic (0x1f1f) - GHI lệnh');
+            } catch (e) {}
+          }
+
+          // epdCharacteristic (0x4b646063) - ĐỌC/NHẬN dữ liệu
+          if (svcEPD) {
+            try {
+              let epdChar = await svcEPD.getCharacteristic('4b646063-6264-f3a7-8941-e65356ea82fe');
+              await epdChar.startNotifications();
+              epdChar.addEventListener('characteristicvaluechanged', function (event) {
+                console.log('→ Nhận:', bytesToHex(new Uint8Array(event.target.value.buffer)));
+              });
+              console.log('✓ epdCharacteristic (0x4b646063) - ĐỌC/NHẬN');
+            } catch (e) {}
+          }
+
+          if (!longValue) throw new Error('Không tìm thấy characteristic nào!');
+
+          // Chỉ bật nút Đồng bộ + Chuyển giao diện (KHÔNG bật Update Firmware!)
+          document.getElementById('setime-button').disabled = false;
+          document.getElementById('send90-button').disabled = false;
+          document.getElementById('setime-button').classList.remove('opacity-50', 'cursor-not-allowed');
+          document.getElementById('send90-button').classList.remove('opacity-50', 'cursor-not-allowed');
+          enableWatchFaceButtons();
+          setFirmwareButtonsState(false); // KHÔNG cho update FW trên thiết bị khác
+
+          console.log('⚠️ Chỉ bật: Đồng bộ thời gian, Chuyển giao diện, Gửi ảnh');
+          console.log('⚠️ KHÔNG bật: Update Firmware (chỉ hỗ trợ trên ONE-2.13L)');
+
+        } else {
+          throw new Error('Không tìm thấy service BLE nào phù hợp trên thiết bị!');
         }
 
         connected = true;
@@ -999,20 +973,10 @@
           now.getFullYear(), now.getMonth(), now.getDate(),
           now.getHours(), now.getMinutes(), now.getSeconds()
         );
-        document.getElementById('setime-button').disabled = false;
-        document.getElementById('upfirm-button').disabled = false;
-        document.getElementById('send90-button').disabled = false;
-        document.getElementById('calibration-button').disabled = false;
-        document.getElementById('setime-button').classList.remove('opacity-50', 'cursor-not-allowed');
-        document.getElementById('upfirm-button').classList.remove('opacity-50', 'cursor-not-allowed');
-        document.getElementById('send90-button').classList.remove('opacity-50', 'cursor-not-allowed');
-        document.getElementById('calibration-button').classList.remove('opacity-50', 'cursor-not-allowed');
-
-        enableWatchFaceButtons();
-        setFirmwareButtonsState(true);
 
         connectButton.innerHTML = '<i class="fa fa-disconnect"></i> Ngắt kết nối';
         connectButton.disabled = false;
+
       } catch (error) {
         console.log('Kết nối thất bại:', error);
         disconnect();
@@ -1117,6 +1081,10 @@
 
     // 固件升级
     async function onUpdate() {
+      if (deviceType !== 'ONE') {
+        alert('⚠️ Update Firmware CHỈ hỗ trợ trên thiết bị ONE-2.13L!');
+        return;
+      }
       const upfirmButton = document.getElementById('upfirm-button');
       upfirmButton.disabled = true;
       upfirmButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang cập nhật...';
@@ -1982,6 +1950,10 @@
     }
 
     async function installFirmware(fileUrl, version) {
+      if (deviceType !== 'ONE') {
+        alert('⚠️ Update Firmware CHỈ hỗ trợ trên thiết bị ONE-2.13L!\nThiết bị hiện tại: ' + (deviceType || 'không xác định'));
+        return;
+      }
       const progressSection = document.getElementById('ota-progress-section');
       const statusText = document.getElementById('ota-status-text');
       const progressBar = document.getElementById('ota-progress-bar');
