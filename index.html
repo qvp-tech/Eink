@@ -1,0 +1,2043 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[ONE] E-Ink webconfig</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind 配置 -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3B82F6',
+            secondary: '#10B981',
+            accent: '#8B5CF6',
+            warning: '#F59E0B',
+            danger: '#EF4444',
+            dark: '#1E293B',
+            light: '#F8FAFC'
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .btn-hover {
+        @apply transition-all duration-300 hover:shadow-lg transform hover:-translate-y-0.5;
+      }
+      .card-effect {
+        @apply bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300;
+      }
+      .text-gradient {
+        @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+      }
+    }
+  </style>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f0f9ff;
+      background-image:
+        radial-gradient(at 40% 20%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+        radial-gradient(at 80% 0%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+        radial-gradient(at 0% 50%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+    }
+
+    .log-entry {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen p-4 md:p-6 flex justify-center items-start font-inter text-dark">
+  <div class="w-full max-w-4xl">
+    <!-- 头部标题 -->
+    <header class="mb-6 text-center">
+      <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold text-gradient mb-2">Cài đặt màn hình E-Ink</h1>
+    </header>
+
+    <!-- Trạng thái thiết bị và hệ thống -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+          <i class="fa fa-microchip"></i>
+        </div>
+        <div>
+          <p class="text-gray-500 text-sm">Tên thiết bị</p>
+          <p id="device_name" class="font-semibold">Chưa có kết nối</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+          <i class="fa fa-code"></i>
+      </div>
+        <div>
+          <p class="text-gray-500 text-sm">Phiên bản Firmware</p>
+          <p id="device_fw_version" class="font-semibold">--.--</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center text-warning">
+          <i class="fa fa-bolt"></i>
+        </div>
+        <div>
+          <p class="text-gray-500 text-sm">Điện áp hiện tại</p>
+          <p id="current_voltage" class="font-semibold">--.- V</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+          <i class="fa fa-calendar"></i>
+        </div>
+        <div>
+          <p class="text-gray-500 text-sm">Thời gian thiết bị</p>
+          <p id="current_time" class="font-semibold">--:--:--</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
+          <i class="fa fa-laptop"></i>
+        </div>
+        <div>
+          <p class="text-gray-500 text-sm">Thời gian hệ thống</p>
+          <p id="system_time" class="font-semibold">Đang tải...</p>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- 主内容卡片 -->
+    <div class="card-effect p-5 md:p-6 space-y-6">
+
+    <!-- === THANH CHUYỂN ĐỔI TAB CHÍNH (3 Tab) === -->
+    <div class="flex flex-wrap gap-3 md:gap-4 mb-6">
+      <!-- Tab 1: Xanh dương đậm (Indigo/Blue) -->
+      <button onclick="switchTab('tab1')" id="tab1-btn" class="flex-1 min-w-[150px] justify-center bg-amber-500 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-semibold shadow-md shadow-indigo-100 transition-all">
+        <i class="fa fa-mobile"></i>
+        <span class="flex flex-col text-center leading-tight">
+          <span>Quản lý</span>
+          <span>thiết bị</span>
+        </span>
+      </button>
+
+      <!-- Tab 4: Giao diện đồng hồ mới -->
+      <button onclick="switchTab('tab4')" id="tab4-btn" class="flex-1 min-w-[130px] justify-center bg-gray-100 text-gray-600 hover:bg-amber-50 hover:text-amber-600 px-4 py-3 rounded-xl flex items-center gap-2 font-semibold transition-all">
+          <i class="fa fa-clock-o"></i>
+          <span class="flex flex-col text-center leading-tight">
+            <span>Giao diện</span>
+            <span>đồng hồ</span>
+          </span>
+      </button>
+
+      <!-- Tab 2: Xanh ngọc (Teal) -->
+      <button onclick="switchTab('tab2')" id="tab2-btn" class="flex-1 min-w-[150px] justify-center bg-gray-100 text-gray-600 hover:bg-teal-50 hover:text-teal-600 px-5 py-3 rounded-xl flex items-center gap-2 font-semibold transition-all">
+        <i class="fa fa-image"></i> Truyền hình ảnh
+      </button>
+
+      <!-- Tab 3: Tím (Purple) -->
+      <button onclick="switchTab('tab3')" id="tab3-btn" class="flex-1 min-w-[150px] justify-center bg-gray-100 text-gray-600 hover:bg-purple-50 hover:text-purple-600 px-5 py-3 rounded-xl flex items-center gap-2 font-semibold transition-all">
+        <i class="fa fa-refresh"></i> Update Firmware
+      </button>
+
+
+    </div>
+
+
+      <!-- === KHU VỰC NỘI DUNG CÁC TAB === -->
+      <!-- TAB 1: Quản lý thiết bị -->
+      <div id="tab1-content" class="tab-content space-y-4">
+
+        <div class="p-4 bg-gray-50/80 border border-gray-200/80 rounded-xl space-y-3">
+          <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Thao tác thiết bị</span>
+
+          <!-- Dùng CSS Grid để chia đều 4 nút trên màn hình lớn và tự động xuống dòng/cân đối trên màn hình nhỏ -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button id="connect-button" class="bg-primary text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium shadow-sm transition-all">
+              <i class="fa fa-bluetooth"></i>
+              <span class="flex flex-col text-center leading-tight">
+                <span>Kết nối</span>
+                <span>thiết bị</span>
+              </span>
+            </button>
+            <button id="setime-button" class="bg-warning text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium opacity-50 cursor-not-allowed shadow-sm transition-all" disabled>
+              <i class="fa fa-clock-o"></i>
+              <span class="flex flex-col text-center leading-tight">
+                <span>Đồng bộ</span>
+                <span>thời gian</span>
+              </span>
+            </button>
+            <button id="send90-button" class="bg-secondary text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium opacity-50 cursor-not-allowed shadow-sm transition-all" disabled>
+              <i class="fa fa-send"></i>
+              <span class="flex flex-col text-center leading-tight">
+                <span>Chuyển đổi</span>
+                <span>giao diện</span>
+              </span>
+            </button>
+            <button id="calibration-button" class="bg-purple-500 text-white px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 font-medium opacity-50 cursor-not-allowed shadow-sm transition-all" disabled>
+              <i class="fa fa-wrench"></i>
+              <span class="flex flex-col text-center leading-tight">
+                <span>Căn chỉnh</span>
+                <span>thời gian</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <!-- TAB 2: Truyền hình ảnh -->
+      <div id="tab2-content" class="tab-content hidden space-y-4">
+        <div class="p-6 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col items-center space-y-4">
+
+          <!-- 1. Chọn kích thước màn hình -->
+          <div class="w-full max-w-md flex flex-col gap-1.5">
+            <label for="screen-size-select" class="text-sm font-semibold text-gray-700">Chọn loại màn hình E-Ink:</label>
+            <select id="screen-size-select" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white text-gray-800" onchange="updateCanvasSize()">
+              <option value="212x104">2.13 inch (212 x 104 pixels)</option>
+              <option value="250x122">2.13 inch (250 x 122 pixels)</option>
+            </select>
+          </div>
+
+          <!-- 2. Nút chọn ảnh từ máy -->
+          <div class="w-full max-w-md flex flex-col gap-1.5">
+            <label class="text-sm font-semibold text-gray-700">Chọn hình ảnh tải lên:</label>
+            <input type="file" id="image-file-input" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/25 cursor-pointer border border-gray-200 rounded-lg p-1">
+          </div>
+
+          <!-- Thanh trượt điều chỉnh ngưỡng đen trắng -->
+          <!-- <div class="w-full max-w-md flex flex-col gap-1.5 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+            <div class="flex justify-between items-center text-sm font-semibold text-gray-700">
+              <label for="threshold-slider">Ngưỡng (chế độ Đen&Trắng):</label>
+              <span id="threshold-value" class="text-indigo-600 font-bold">128</span>
+            </div>
+            <input type="range" id="threshold-slider" min="0" max="255" value="128" class="w-full accent-indigo-600 cursor-pointer" oninput="applyThreshold()">
+          </div> -->
+
+          <!-- 3. Canvas hiển thị Preview (có viền nhẹ để dễ nhìn ảnh trắng) -->
+          <div class="p-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl flex items-center justify-center overflow-hidden">
+            <canvas id="canvas" class="border border-gray-300 shadow-sm bg-white"></canvas>
+          </div>
+
+          <!-- Nhóm nút điều khiển ảnh -->
+          <div class="w-full max-w-md p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+            <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider block">Công cụ chỉnh sửa ảnh</span>
+
+            <!-- Khung chứa chung đặt ngang hàng: Ngưỡng Đ&T và Checkbox lưu flash -->
+            <div class="w-full max-w-md flex items-center justify-between gap-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+
+              <!-- Phần 1: Thanh trượt điều chỉnh ngưỡng -->
+              <div class="flex-1 flex flex-col gap-1">
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-700">
+                  <label for="threshold-slider">Ngưỡng (Đ&T):</label>
+                  <span id="threshold-value" class="text-indigo-600 font-bold">128</span>
+                </div>
+                <input type="range" id="threshold-slider" min="0" max="255" value="128" class="watch-face-btn w-full accent-indigo-600 cursor-pointer" oninput="applyThreshold()">
+              </div>
+
+              <!-- Phần 2: Checkbox lưu bộ nhớ thiết bị -->
+              <div class="flex items-center gap-2 pl-2 border-l border-gray-200">
+                <input type="checkbox" id="save-flash-checkbox" class="watch-face-btn  w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                <label for="save-flash-checkbox" class="text-xs font-medium text-gray-700 cursor-pointer select-none whitespace-nowrap">
+                  Lưu vào bộ nhớ thiết bị
+                </label>
+              </div>
+
+            </div>
+
+            <!-- Hàng 1: Tải lại & Kéo giãn vừa màn -->
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="reloadImage()" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-refresh"></i> Tải lại
+              </button>
+              <button onclick="fitImageStretch()" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-arrows-alt"></i> Kéo giãn vừa màn
+              </button>
+            </div>
+
+            <!-- Hàng 2: Vừa khít màn hình & Đặt lại 100% -->
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="fitImageContain()" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-compress"></i> Vừa khít màn hình
+              </button>
+              <button onclick="resetImageScale()" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-search"></i> Đặt lại 100%
+              </button>
+            </div>
+
+            <!-- Hàng 3: Xoay thuận 90° & Xoay ngược 90° -->
+            <div class="grid grid-cols-2 gap-2">
+              <button onclick="rotateImage(90)" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-rotate-right"></i> Xoay thuận 90°
+              </button>
+              <button onclick="rotateImage(-90)" class="watch-face-btn bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-rotate-left"></i> Xoay ngược 90°
+              </button>
+            </div>
+
+            <!-- Hàng 4: Đặt lại xoay (chiếm trọn chiều ngang) -->
+            <div>
+              <button onclick="resetImageRotation()" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-all shadow-sm">
+                <i class="fa fa-undo"></i> Đặt lại xoay
+              </button>
+            </div>
+          </div>
+
+          <!-- 4. Nút "Tải xuống thiết bị" (Upload) -->
+          <button id="upload-btn" onclick="upload_image()" class="w-full max-w-md bg-accent text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2 shadow-md hover:opacity-95 transition-all">
+            <i class="fa fa-cloud-upload"></i> Tải xuống thiết bị
+          </button>
+
+        </div>
+        <div id="img-progress-container">
+          <p class="text-sm font-medium text-gray-600 mb-1">Tiến trình truyền ảnh</p>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div id="img_update_progress_bar" class="h-full bg-gradient-to-r from-primary to-accent w-0 transition-all duration-300"></div>
+          </div>
+          <p id="img_update_progress_text" class="text-xs text-gray-500 mt-1">0%</p>
+          <div id="img_update_progress" class="hidden"></div>
+        </div>
+      </div>
+
+      <!-- TAB 3: Cập nhật Firmware -->
+      <div id="tab5-content" class="tab-content hidden space-y-4">
+        <div class="p-4 bg-white rounded-xl shadow-sm border border-gray-100 text-center py-8">
+          <!-- Khung chứa căn giữa 2 nút -->
+          <div class="w-full flex justify-center">
+            <div class="grid grid-cols-1 sm:grid-cols-1 gap-4 w-full max-w-xl">
+              <!-- Nút 1: Cập nhật Firmware -->
+              <button id="upfirm-button" onclick="onUpdate()" class="bg-accent text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 shadow-md hover:opacity-95 transition-all">
+                <i class="fa fa-refresh"></i> Cập nhật Firmware
+              </button>
+
+              <!-- Nút 2: Ghi Font Data -->
+              <!-- <button id="upfont-button" onclick="onUpdateFont()" class="bg-indigo-600 text-white py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 shadow-md hover:bg-indigo-700 transition-all">
+                <i class="fa fa-font"></i> Ghi Font Data
+              </button> -->
+            </div>
+          </div>
+          <br>
+          <br>
+          <!-- 进度条区域 -->
+          <div id="progress-container">
+            <p class="text-sm font-medium text-gray-600 mb-1">Tiến trình cập nhật Firmware</p>
+            <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div id="update_progress_bar" class="h-full bg-gradient-to-r from-primary to-accent w-0 transition-all duration-300"></div>
+            </div>
+            <p id="update_progress_text" class="text-xs text-gray-500 mt-1">0%</p>
+            <div id="update_progress" class="hidden"></div>
+          </div>
+
+        </div>
+      </div>
+
+        <!-- TAB 4: Giao diện đồng hồ (Watch Faces) -->
+        <div id="tab4-content" class="tab-content hidden space-y-4">
+            <div class="p-6 bg-white rounded-xl shadow-sm border border-gray-100 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="font-bold text-gray-700 text-lg flex items-center gap-2">
+                <i class="fa fa-th-large text-amber-500"></i> Chọn mẫu giao diện màn hình
+                </h3>
+                <span class="text-xs text-gray-400">Kích thước tham khảo: 212 x 104 pixels</span>
+            </div>
+
+            <!-- Lưới danh sách các giao diện đồng hồ -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+                <!-- Mẫu 1 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <!-- Hiển thị ảnh trực tiếp -->
+                    <img src="images/mau_1.jpg" alt="Mẫu 1" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 1</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(0)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 2 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_2.jpg" alt="Mẫu 2" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 2</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(1)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 3 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_3.jpg" alt="Mẫu 3" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 3</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cácht</p>
+                    <button onclick="selectWatchFace(2)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 4 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_4.jpg" alt="Mẫu 4" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 4</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(3)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 5 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_5.jpg" alt="Mẫu 5" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 5</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(4)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 6 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_6.jpg" alt="Mẫu 6" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 6</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(5)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 7 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    <img src="images/mau_7.jpg" alt="Mẫu 7" class="max-h-full max-w-full object-contain">
+                </div>
+                <div class="w-full text-center">
+                    <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 7</h4>
+                    <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                    <button onclick="selectWatchFace(6)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                    Áp dụng mẫu này
+                    </button>
+                </div>
+                </div>
+
+                <!-- Mẫu 8 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_8.jpg" alt="Mẫu 8" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 8</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                      <button onclick="selectWatchFace(7)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 9 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_9.jpg" alt="Mẫu 9" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 9</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                      <button onclick="selectWatchFace(8)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 10 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_10.jpg" alt="Mẫu 10" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 10</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách</p>
+                      <button onclick="selectWatchFace(9)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 11 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_11.jpg" alt="Mẫu 11" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 11</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số + lịch tháng</p>
+                      <button onclick="selectWatchFace(10)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 12 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_12.jpg" alt="Mẫu 12" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 12</h4>
+                      <p class="text-xs text-gray-500 mb-3">Lịch tháng</p>
+                      <button onclick="selectWatchFace(11)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 13 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_13.jpg" alt="Mẫu 13" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 13</h4>
+                      <p class="text-xs text-gray-500 mb-3">Lịch tháng có cả âm lịch</p>
+                      <button onclick="selectWatchFace(12)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 14 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_14.jpg" alt="Mẫu 14" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 14</h4>
+                      <p class="text-xs text-gray-500 mb-3">Hiển thị hình ảnh đã lưu trong bộ nhớ thiết bị</p>
+                      <button onclick="selectWatchFace(13)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 15 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_15.jpg" alt="Mẫu 15" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 15</h4>
+                      <p class="text-xs text-gray-500 mb-3">Super Mario<br>(Firmware 0.8 trở lên)</p>
+                      <button onclick="selectWatchFace(14)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 16 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_16.jpg" alt="Mẫu 16" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 16</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách<br>(Firmware 0.9 trở lên)</p>
+                      <button onclick="selectWatchFace(15)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 17 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_17.jpg" alt="Mẫu 17" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 17</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách<br>(Firmware 0.9 trở lên)</p>
+                      <button onclick="selectWatchFace(16)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 18 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_18.jpg" alt="Mẫu 18" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 18</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách<br>(Firmware 0.9 trở lên)</p>
+                      <button onclick="selectWatchFace(17)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+                <!-- Mẫu 19 -->
+                <div class="border border-gray-200 rounded-xl p-4 flex flex-col items-center space-y-3 hover:shadow-md transition-all bg-gray-50/50">
+                  <div class="w-full h-32 bg-white border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center p-2">
+                      <img src="images/mau_19.jpg" alt="Mẫu 19" class="max-h-full max-w-full object-contain">
+                  </div>
+                  <div class="w-full text-center">
+                      <h4 class="font-semibold text-gray-800">Mẫu Giao Diện 19</h4>
+                      <p class="text-xs text-gray-500 mb-3">Đồng hồ số phong cách<br>(Firmware 0.9 trở lên)</p>
+                      <button onclick="selectWatchFace(18)" class="watch-face-btn w-full bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+                      Áp dụng mẫu này
+                      </button>
+                  </div>
+                  </div>
+
+            </div>
+            </div>
+        </div>
+
+        <div id="tab3-content" class="tab-content hidden space-y-4">
+            <!-- Badge Tiêu đề -->
+            <div class="mb-4">
+              <span class="inline-block bg-sky-50 text-sky-700 font-semibold px-4 py-1.5 rounded-full text-sm border border-sky-200">
+                Danh sách firmware
+              </span>
+            </div>
+            <div class="flex items-center justify-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-xs sm:text-sm px-4 py-2 rounded-lg my-3 font-medium">
+              <i class="fa-solid fa-circle-info text-amber-600"></i>
+              <span>
+                <li>Khuyến cáo nên sử dụng phiên bản mới nhất để có thể trải nghiệm nhiều tính năng hơn.</li>
+                <li>Khi cập nhật xong thiết bị sẽ tự khởi động lại để load firmware mới, Anh em vui lòng kết nối lại để tiếp tục cài đặt</li>
+              </span>
+            </div>
+
+
+            <div id="fw-list-container"></div>
+
+            <!-- Nút & Thanh Tiến Trình (Chỉ hiển thị khi bấm cài đặt) -->
+            <div id="ota-progress-section" class="hidden mt-6 pt-4 border-t border-slate-100">
+              <div class="flex items-center justify-between mb-2">
+                <span id="ota-status-text" class="text-sm font-medium text-slate-700">Đang chuẩn bị nạp firmware...</span>
+                <span id="ota-percent" class="text-sm font-bold text-sky-600">0%</span>
+              </div>
+
+              <!-- Thanh tiến trình -->
+              <div class="w-full bg-slate-100 h-3 rounded-full overflow-hidden border border-slate-200">
+                <div id="ota-progress-bar" class="bg-sky-600 h-full w-0 transition-all duration-200 ease-out rounded-full"></div>
+              </div>
+            </div>
+        </div>
+
+      <!-- 日志终端区域 -->
+      <div class="space-y-2">
+        <div class="flex justify-between items-center">
+          <h3 class="font-semibold text-gray-700 flex items-center gap-2">
+            <i class="fa fa-terminal text-primary"></i> Nhật ký hệ thống
+          </h3>
+          <button id="clear-log-btn" class="text-xs text-gray-500 hover:text-danger transition-colors">
+            <i class="fa fa-trash-o"></i> Xóa nhật ký
+          </button>
+        </div>
+
+        <div id="log-window" class="bg-gray-900 text-gray-100 text-xs md:text-sm rounded-lg h-48 md:h-64 overflow-y-auto p-3 font-mono">
+          <div class="text-gray-400 log-entry">Đang chờ kết nối thiết bị....</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 页脚信息 -->
+    <footer class="mt-6 text-center text-xs text-gray-500">
+      <p>e-Ink clock &copy; https://github.com/lihkientheone/eink_config</p>
+    </footer>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/crc-32-latest/package/crc32.js"></script>
+
+  <script>
+
+    function hexToBytes(hex) {
+        for (var bytes = [], c = 0; c < hex.length; c += 2)
+            bytes.push(parseInt(hex.substr(c, 2), 16));
+        return new Uint8Array(bytes);
+    }
+    function bytesToHex(data) {
+        return new Uint8Array(data).reduce(
+            function (memo, i) {
+                return memo + ("0" + i.toString(16)).slice(-2);
+            }, "");
+    }
+    function intToHex(intIn, bytes = 4) {
+        return intIn.toString(16).padStart(bytes * 2, '0');
+    }
+
+    // 系统时间更新
+    function updateSystemTime() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      const dateString = now.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      document.getElementById('system_time').textContent = `${dateString} ${timeString}`;
+    }
+
+    // 初始化更新系统时间并设置定时器
+    updateSystemTime();
+    setInterval(updateSystemTime, 1000);
+
+    // 日志系统
+    const logWindow = document.getElementById('log-window');
+    const clearLogBtn = document.getElementById('clear-log-btn');
+
+    // 自定义日志函数
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      const logLine = document.createElement('div');
+      logLine.className = 'log-entry mb-1 border-b border-gray-800 pb-1';
+
+      let typeIcon = '';
+      let typeColor = '';
+
+      switch(type) {
+        case 'success':
+          typeIcon = '<span class="text-green-400 mr-1"><i class="fa fa-check-circle"></i></span>';
+          typeColor = 'text-green-300';
+          break;
+        case 'error':
+          typeIcon = '<span class="text-red-400 mr-1"><i class="fa fa-exclamation-circle"></i></span>';
+          typeColor = 'text-red-300';
+          break;
+        case 'warning':
+          typeIcon = '<span class="text-yellow-400 mr-1"><i class="fa fa-exclamation-triangle"></i></span>';
+          typeColor = 'text-yellow-300';
+          break;
+        case 'info':
+        default:
+          typeIcon = '<span class="text-blue-400 mr-1"><i class="fa fa-info-circle"></i></span>';
+          typeColor = 'text-gray-300';
+      }
+
+      logLine.innerHTML = `<span class="text-gray-500 mr-2">[${timestamp}]</span>${typeIcon}<span class="${typeColor}">${message}</span>`;
+      logWindow.appendChild(logLine);
+      logWindow.scrollTop = logWindow.scrollHeight;
+    }
+
+    // 替换console.log
+    const originalLog = console.log;
+    console.log = function (...args) {
+      originalLog(...args);
+      log(args.join(" "));
+    };
+
+    // 清空日志
+    clearLogBtn.addEventListener('click', () => {
+      logWindow.innerHTML = '<div class="text-gray-400 log-entry">Đã xóa nhật ký.</div>';
+    });
+
+    // 核心功能代码
+    var connected = false;
+    var device = null;
+    var longValue = null;
+    var deviceTimeInterval = null; // 设备时间更新定时器
+    var deviceTimeBase = null;     // 设备时间基准值
+
+    // 格式化时间显示
+    function formatTime(year, month, mday, hour, min, sec) {
+      month += 1;
+      return `${year}-${month.toString().padStart(2, '0')}-${mday.toString().padStart(2, '0')} ${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+    }
+
+    // 更新设备时间显示
+    function updateDeviceTime() {
+      if (!deviceTimeBase) return;
+
+      // 获取基准时间
+      let { year, month, mday, hour, minute, second } = deviceTimeBase;
+
+      // 计算从基准时间开始经过的秒数
+      const now = new Date();
+      const elapsedSeconds = Math.floor((now - deviceTimeBase.timestamp) / 1000);
+
+      // 更新时间
+      let totalSeconds = second + elapsedSeconds;
+      second = totalSeconds % 60;
+      let totalMinutes = minute + Math.floor(totalSeconds / 60);
+      minute = totalMinutes % 60;
+      let totalHours = hour + Math.floor(totalMinutes / 60);
+      hour = totalHours % 24;
+      // 此处忽略天数变化，因为设备时间通常不会长时间运行
+
+      // 更新显示
+      document.getElementById('current_time').textContent = formatTime(year, month, mday, hour, minute, second);
+    }
+
+    function onClick() {
+      if(connected) disconnect();
+      else connectToDevice();
+    }
+
+    // 连接设备
+    async function connectToDevice() {
+      try {
+        // 更新按钮状态
+        const connectButton = document.getElementById('connect-button');
+        // connectButton.disabled = true;
+        connectButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang kết nối...';
+
+        console.log('Đang yêu cầu kết nối thiết bị...');
+
+
+        // 2. Chuyển UUID 16-bit sang dạng chuỗi chuẩn 128-bit Base UUID của Bluetooth SIG
+        // 0xff00 -> 0000ff00-0000-1000-8000-00805f9b34fb
+        const SVC_UUID   = '0000ff00-0000-1000-8000-00805f9b34fb';
+        const CHAR_CTRL  = '0000ff03-0000-1000-8000-00805f9b34fb';
+        const CHAR_ADC   = '0000ff02-0000-1000-8000-00805f9b34fb';
+        const CHAR_LONG  = '0000ff01-0000-1000-8000-00805f9b34fb';
+
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [ SVC_UUID ]
+        });
+        console.log('Tên thiết bị:', device.name);
+        document.getElementById('device_name').textContent = device.name;
+        device.ongattserverdisconnected = onDisconnect;
+
+        let server = await device.gatt.connect();
+        console.log('Đã kết nối thiết bị');
+
+        let service = await server.getPrimaryService(SVC_UUID);
+        let ctrlPoint = await service.getCharacteristic(CHAR_CTRL);
+        let adc1Value = await service.getCharacteristic(CHAR_ADC);
+        longValue = await service.getCharacteristic(CHAR_LONG);
+
+        let cur_voltage = await adc1Value.readValue();
+        console.log('Điện áp hiện tại:', cur_voltage.getUint16(0, true) / 1000 + 'V');
+        document.getElementById('current_voltage').textContent = (cur_voltage.getUint16(0, true) / 1000).toFixed(2) + ' V';
+
+        let cur_time = await longValue.readValue();
+        let year = cur_time.getUint16(0, true),
+            month = cur_time.getUint8(2),
+            mday = cur_time.getUint8(3),
+            hour = cur_time.getUint8(4),
+            minute = cur_time.getUint8(5),
+            second = cur_time.getUint8(6);
+
+        let fwVersionText = "0.7"; // Giá trị hiển thị mặc định nếu là FW cũ
+
+        // Kiểm tra độ dài tối thiểu 13 bytes trước khi đọc
+        if (cur_time.byteLength >= 13) {
+            let major = cur_time.getUint8(11);
+            let minor = cur_time.getUint8(12);
+
+            fwVersionText = `${major}.${minor}`;
+        }
+        document.getElementById('device_fw_version').textContent = fwVersionText;
+
+
+        // 保存设备时间基准值和当前时间戳
+        deviceTimeBase = {
+          year, month, mday, hour, minute, second,
+          timestamp: new Date()
+        };
+
+        // 立即更新设备时间显示
+        updateDeviceTime();
+
+        // 设置定时器每秒更新一次设备时间
+        if (deviceTimeInterval) clearInterval(deviceTimeInterval);
+        deviceTimeInterval = setInterval(updateDeviceTime, 1000);
+
+        let now = new Date();
+        document.getElementById('system_time').textContent = formatTime(
+          now.getFullYear(), now.getMonth(), now.getDate(),
+          now.getHours(), now.getMinutes(), now.getSeconds()
+        );
+
+        connected = true;
+        document.getElementById('setime-button').disabled = false;
+        document.getElementById('upfirm-button').disabled = false;
+        document.getElementById('send90-button').disabled = false;
+        document.getElementById('calibration-button').disabled = false;
+        document.getElementById('setime-button').classList.remove('opacity-50', 'cursor-not-allowed');
+        document.getElementById('upfirm-button').classList.remove('opacity-50', 'cursor-not-allowed');
+        document.getElementById('send90-button').classList.remove('opacity-50', 'cursor-not-allowed');
+        document.getElementById('calibration-button').classList.remove('opacity-50', 'cursor-not-allowed');
+
+        enableWatchFaceButtons();
+        setFirmwareButtonsState(true);
+
+        connectButton.innerHTML = '<i class="fa fa-disconnect"></i> Ngắt kết nối';
+        connectButton.disabled = false;
+      } catch (error) {
+        console.log('Kết nối thất bại:', error);
+        disconnect();
+      }
+    }
+
+    // 对时功能
+    async function onSetTime() {
+      const setimeButton = document.getElementById('setime-button');
+      setimeButton.disabled = true;
+      setimeButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang đồng bộ...';
+
+      try {
+        // 等待整秒时间
+        while(true){
+          const tm_ms = Date.now();
+          if((tm_ms%1000)==0)
+            break;
+		}
+
+        let now = new Date();
+        let year = now.getFullYear(),
+            month = now.getMonth(),
+            mday = now.getDate(),
+            wday = now.getDay(),
+            hour = now.getHours(),
+            minute = now.getMinutes(),
+            second = now.getSeconds();
+
+        let locale_str = now.toLocaleDateString('zh-CN-u-ca-chinese',{month:'numeric',day:'numeric'});
+        let l_month = locale_str.startsWith('闰') ? 128 : 0;
+        if (l_month) locale_str = locale_str.slice(1);
+        let [l_month_num, l_day] = locale_str.split('-').map(Number);
+        l_month += l_month_num;
+        let l_year = parseInt(now.toLocaleDateString('zh-CN-u-ca-chinese',{year:'numeric'}));
+        console.log('Năm Âm lịch:', l_year, 'Tháng:', l_month, 'Ngày:', l_day);
+
+        let buf = new Uint8Array(12);
+        buf.set([0x91, year % 256, Math.floor(year / 256), month, mday, hour, minute, second, wday, l_year - 2020, l_month - 1, l_day]);
+        await longValue.writeValue(buf);
+
+        // 更新设备时间基准值
+        deviceTimeBase = {
+          year, month: month, mday, hour, minute, second,
+          timestamp: new Date()
+        };
+
+        // 立即更新设备时间显示
+        updateDeviceTime();
+
+        console.log('Đã đồng bộ hóa thời gian thành công!');
+      } catch (error) {
+        console.log('Đồng bộ hóa thời gian thất bại:', error);
+      } finally {
+        setimeButton.innerHTML = '<i class="fa fa-clock-o"></i> Đồng bộ thời gian';
+        setimeButton.disabled = false;
+      }
+    }
+
+    // 文件读取辅助函数
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // 固件标识查找
+    function find_patten(target, patten) {
+      for (let i = 0; i <= target.length - patten.length; i++) {
+        let match = true;
+        for (let j = 0; j < patten.length; j++) {
+          if (target[i + j] !== patten[j]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return i;
+      }
+      return -1;
+    }
+
+    // 发送命令
+    async function onSend90() {
+      const send90Button = document.getElementById('send90-button');
+      send90Button.disabled = true;
+      send90Button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang gửi...';
+
+      try {
+        let buf = new Uint8Array([0x90]);  // 构造单字节命令
+        await longValue.writeValue(buf);
+        console.log('Đã gửi lệnh chuyển đổi giao diện.');
+      } catch (err) {
+        console.log('Gửi thất bại:', err);
+      } finally {
+        send90Button.innerHTML = '<i class="fa fa-send"></i> Chuyển đổi giao diện đồng hồ';
+        send90Button.disabled = false;
+      }
+    }
+
+    // 固件升级
+    async function onUpdate() {
+      const upfirmButton = document.getElementById('upfirm-button');
+      upfirmButton.disabled = true;
+      upfirmButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang cập nhật...';
+
+      document.getElementById('progress-container').classList.remove('hidden');
+
+      let firm_buf, firm_size;
+
+      try {
+        console.log('Hãy chọn tập tin firmware');
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: 'Firm files', accept: { 'text/plain': ['.bin'] } }]
+        });
+        const file = await handle.getFile();
+        let abuf = await readFileAsArrayBuffer(file);
+        firm_buf = new Uint8Array(abuf);
+        firm_size = file.size;
+      } catch (err) {
+        console.log('Không thể đọc tập tin:', err);
+        upfirmButton.innerHTML = '<i class="fa fa-refresh"></i> Cập nhật firmware';
+        upfirmButton.disabled = false;
+        // document.getElementById('progress-container').classList.add('hidden');
+        return;
+      }
+
+      const data_magic = new Uint8Array([0x14, 0x07, 0x19, 0x90, 0xEB, 0xF8, 0xE6, 0x6F]);
+
+      let data_pos = find_patten(firm_buf, data_magic);
+      let data_buf = null;
+      let data_size = 0;
+      let has_data = false;
+
+      if (data_pos != -1) {
+        has_data = true;
+
+        let data_offset = data_pos + 8;
+        data_buf = firm_buf.slice(data_offset);
+        data_size = data_buf.length;
+
+        firm_buf = firm_buf.slice(0, data_pos);
+        firm_size = firm_buf.length;
+      }
+
+      let firm_magic = new Uint8Array([0x79, 0x13, 0xa5, 0xf9, 0x86, 0xec, 0x5a, 0x06]);
+      let pos = find_patten(firm_buf, firm_magic);
+      if (pos == -1) {
+        console.log('Firmware không hợp lệ: Không tìm thấy số phiên bản!');
+        upfirmButton.innerHTML = '<i class="fa fa-refresh"></i> Cập nhật firmware';
+        upfirmButton.disabled = false;
+        // document.getElementById('progress-container').classList.add('hidden');
+        return;
+      }
+
+      let major = firm_buf[pos + 9];
+      let minor = firm_buf[pos + 8];
+      let firm_ver = firm_buf[pos + 9] * 256 + firm_buf[pos + 8];
+      let firm_crc = CRC32.buf(firm_buf);
+
+      console.log(`firmware version ${major}.${minor} - kích cỡ: ${firm_size} - CRC: ${(firm_crc >>> 0).toString(16)}`);
+
+      let buf = new Uint8Array(136);
+      let view = new DataView(buf.buffer);
+      buf[0] = 0xa0;
+      view.setUint16(2, firm_size, true);
+      await longValue.writeValue(buf);
+
+      let sent = 0;
+      const totalSize = firm_size + 64;
+      const progressBar = document.getElementById('update_progress_bar');
+      const progressText = document.getElementById('update_progress_text');
+
+      try {
+        for (let i = 0; i < totalSize; i += 256) {
+          buf.fill(0xff);
+          if (i === 0) {
+            view.setUint32(8, 0x00aa5170, true);
+            view.setUint32(12, firm_size, true);
+            view.setUint32(16, firm_crc, true);
+            view.setUint32(36, 0xa50f0000 + firm_ver, true);
+            buf[40] = 0;
+            buf[0] = 0xa2;
+            buf.set(firm_buf.slice(sent, sent + 64), 72);
+            await longValue.writeValue(buf);
+            sent += 64;
+          } else {
+            buf[0] = 0xa2;
+            buf.set(firm_buf.slice(sent, sent + 128), 8);
+            await longValue.writeValue(buf);
+            sent += 128;
+          }
+          buf[0] = 0xa3;
+          buf.set(firm_buf.slice(sent, sent + 128), 8);
+          await longValue.writeValue(buf);
+          sent += 128;
+
+          // 更新进度条
+          const progress = Math.min(Math.round(100 * sent / (totalSize + data_size)), 100);
+          progressBar.style.width = `${progress}%`;
+          progressText.textContent = `${progress}%`;
+          document.getElementById('update_progress').textContent = `Tiến độ: ${progress}%`;
+        }
+
+        if (has_data === true)
+        {
+          buf.fill(0xff);
+          buf[0] = 0x60;
+          view.setUint16(2, data_size, true);
+          await longValue.writeValue(buf);
+          let data_sent = 0;
+
+          for (let i = 0; i < data_size; i += 256) {
+            buf.fill(0xff);
+            buf[0] = 0x61;
+            buf.set(data_buf.slice(data_sent, data_sent + 128), 8);
+            await longValue.writeValue(buf);
+            data_sent += 128;
+
+            buf.fill(0xff);
+            buf[0] = 0x62;
+            buf.set(data_buf.slice(data_sent, data_sent + 128), 8);
+            await longValue.writeValue(buf);
+            data_sent += 128;
+
+            // Update status
+            const progress = Math.min(Math.round(100 * (sent + data_sent) / (totalSize + data_size)), 100);
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `${progress}%`;
+            document.getElementById('update_progress').textContent = `Tiến độ: ${progress}%`;
+          }
+        }
+
+
+        /* Đoạn này là gửi lệnh reset thiết bị */
+        console.log('Đã gửi hết dữ liệu, gửi lệnh khởi động lại thiết bị...');
+        buf[0] = 0xa4;
+        buf.fill(0, 1, 4);
+        await longValue.writeValue(buf);
+        console.log('Hoàn thành nâng cấp!');
+      } catch (error) {
+        console.log('Hoàn tất nâng cấp; đã ngắt kết nối Bluetooth.');
+      } finally {
+        upfirmButton.innerHTML = '<i class="fa fa-refresh"></i> Cập nhật firmware';
+        upfirmButton.disabled = false;
+        // document.getElementById('progress-container').classList.add('hidden');
+      }
+    }
+
+	async function onCalibration() {
+		// document.getElementById('calibration-button').disabled = true;
+    const calibButton = document.getElementById('calibration-button');
+      calibButton.disabled = true;
+      calibButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang hiệu chỉnh...';
+
+
+		var minute, second, last_minute, cal_minute;
+
+		cur_time = await longValue.readValue();
+		last_minute = cur_time.getUint8(5);
+		cal_minute = cur_time.getInt32(7, true);
+		console.log('Sau khi đồng bộ hóa thời gian: '+cal_minute+' phút');
+
+        console.log('Chờ cho tới khi chuyển sang phút tiếp theo......');
+        while(true) {
+          cur_time = await longValue.readValue();
+          minute = cur_time.getUint8(5);
+            if(minute != last_minute)
+              break;
+                last_minute = minute;
+        }
+        second = cur_time.getUint8(6);
+
+        var today = new Date();
+        var sys_minute = today.getMinutes();
+        var sys_second = today.getSeconds();
+        console.log('Thời gian thiết bị: '+minute+' phút '+second+' giây');
+        console.log('Thời gian hệ thống: '+sys_minute+' phút '+sys_second+' giây');
+
+		if(cal_minute==-1){
+			console.log('Vui lòng đồng bộ thời gian của bạn trước.!');
+		}else if(cal_minute<2880){
+			console.log('Khoảng thời gian đồng bộ hóa và hiệu chuẩn quá ngắn (dưới hai ngày)!');
+		}else{
+
+			if(minute>sys_minute){
+				if(minute-sys_minute>50)
+					sys_minute += 60;
+			}else{
+				if(sys_minute-minute>50)
+					minute += 60;
+			}
+
+			var diff = (minute*60+second)-(sys_minute*60+sys_second);
+			console.log('Chênh lệch thời gian: '+diff+' giây');
+
+			var buf = new Uint8Array(4);
+			buf[0] = 0x92;
+			buf[1] = diff%256;
+			buf[2] = diff/256;
+			buf[3] = 0x00;
+			await longValue.writeValue(buf);
+
+			console.log('Quá trình hiệu chuẩn hoàn tất.');
+		}
+		// document.getElementById('calibration-button').disabled = false;
+
+    calibButton.innerHTML = '<i class="fa fa-wrench"></i> Căn chỉnh thời gian';
+    calibButton.disabled = false;
+	}
+
+    // 断开连接
+    function disconnect() {
+      const connectButton = document.getElementById('connect-button');
+      connectButton.disabled = true;
+      connectButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Ngắt kết nối...';
+
+      document.getElementById('setime-button').disabled = true;
+      document.getElementById('send90-button').disabled = true;
+      document.getElementById('upfirm-button').disabled = true;
+      document.getElementById('calibration-button').disabled = true;
+      document.getElementById('setime-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('upfirm-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('send90-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('calibration-button').classList.add('opacity-50', 'cursor-not-allowed');
+
+      // 清除设备时间更新定时器
+      if (deviceTimeInterval) {
+        clearInterval(deviceTimeInterval);
+        deviceTimeInterval = null;
+      }
+      deviceTimeBase = null;
+
+      if (device && device.gatt.connected) {
+        device.gatt.disconnect();
+      }
+      onDisconnect();
+    }
+
+    // 断开回调
+    function onDisconnect() {
+      device = null;
+      connected = false;
+
+      document.getElementById('device_name').textContent = "Chưa kết nối";
+      document.getElementById('current_voltage').textContent = "--.- V";
+      document.getElementById('current_time').textContent = "--:--:--";
+      document.getElementById('device_fw_version').textContent = "--.--";
+
+      const connectButton = document.getElementById('connect-button');
+      connectButton.innerHTML = '<i class="fa fa-bluetooth"></i> Kết nối thiết bị';
+      connectButton.disabled = false;
+
+      document.getElementById('setime-button').disabled = true;
+      document.getElementById('send90-button').disabled = true;
+      document.getElementById('upfirm-button').disabled = true;
+      document.getElementById('calibration-button').disabled = true;
+      document.getElementById('setime-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('upfirm-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('send90-button').classList.add('opacity-50', 'cursor-not-allowed');
+      document.getElementById('calibration-button').classList.add('opacity-50', 'cursor-not-allowed');
+
+      disableWatchFaceButtons();
+      setFirmwareButtonsState(false);
+      console.log('Thiết bị đã bị ngắt kết nối.');
+    }
+
+    // 事件绑定
+    document.getElementById('connect-button').addEventListener('click', onClick);
+    document.getElementById('setime-button').addEventListener('click', onSetTime);
+    // document.getElementById('upfirm-button').addEventListener('click', onUpdate);
+    document.getElementById('send90-button').addEventListener('click', onSend90);
+    document.getElementById('calibration-button').addEventListener('click', onCalibration);
+
+    function switchTab(tabId) {
+      // Ẩn tất cả nội dung tab
+      document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.add('hidden');
+      });
+
+      // Reset style tất cả các nút tab về trạng thái không active (màu xám)
+      ['tab1-btn', 'tab2-btn', 'tab3-btn', 'tab4-btn'].forEach(btnId => {
+          const btn = document.getElementById(btnId);
+          btn.className = "flex-1 min-w-[150px] justify-center bg-gray-200 text-gray-700 px-5 py-2.5 rounded-lg flex items-center gap-2 font-medium hover:bg-gray-300 transition-all";
+      });
+
+      // Hiện nội dung tab được chọn
+      document.getElementById(tabId + '-content').classList.remove('hidden');
+
+      // Làm nổi bật nút được click (dùng màu primary hoặc accent)
+      const activeBtn = document.getElementById(tabId + '-btn');
+      activeBtn.className = "flex-1 min-w-[150px] justify-center bg-amber-500 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 font-medium shadow-md transition-all";
+  }
+
+    // Hàm cập nhật kích thước canvas dựa trên dropdown ở Tab 2
+    function updateCanvasSize() {
+        const sizeSelect = document.getElementById('screen-size-select');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext("2d");
+
+        let width = 212;
+        let height = 104;
+
+        if (sizeSelect.value === "250x122") {
+            width = 250;
+            height = 122;
+        } else {
+            width = 212;
+            height = 104;
+        }
+
+        // Gán kích thước cho canvas
+        canvas.width = width;
+        canvas.height = height;
+
+        // Tô nền trắng mặc định
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, width, height);
+
+        if (typeof addLog === 'function') {
+            addLog(`Canvas size updated to: ${width}x${height}`);
+        }
+    }
+
+    function canvas2bytes_bw(canvas, type='bw', rotation = 270) {
+
+        // 1. Tạo canvas tạm để xử lý xoay góc mà không làm ảnh hưởng canvas gốc
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        const arr = [];
+        let buffer = [];
+        let w = canvas.width;
+        let h = canvas.height;
+
+        // Đổi chiều rộng/cao nếu xoay 90 hoặc 270 độ
+        if (rotation === 90 || rotation === 270) {
+            tempCanvas.width = h;
+            tempCanvas.height = w;
+        } else {
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+        }
+
+        tempCtx.save();
+        if (rotation === 90) {
+            tempCtx.translate(h, 0);
+            tempCtx.rotate(Math.PI / 2);
+        } else if (rotation === 180) {
+            tempCtx.translate(w, h);
+            tempCtx.rotate(Math.PI);
+        } else if (rotation === 270) {
+            tempCtx.translate(0, w);
+            tempCtx.rotate(-Math.PI / 2);
+        }
+        tempCtx.drawImage(canvas, 0, 0);
+        tempCtx.restore();
+
+        // 2. Lấy dữ liệu điểm ảnh chuẩn theo kích thước thực sau khi xoay
+        const targetWidth = tempCanvas.width;
+        const targetHeight = tempCanvas.height;
+        const imageData = tempCtx.getImageData(0, 0, targetWidth, targetHeight);
+
+        // 3. Quét theo HÀNG NGANG: y (trên -> dưới), x (trái -> phải)
+        for (let y = 0; y < targetHeight; y++) {
+            for (let x = 0; x < targetWidth; x++) {
+                const index = (y * targetWidth + x) * 4;
+
+                if (type !== 'bwr') {
+                    // Điểm sáng/trắng = 1, điểm tối/đen = 0
+                    buffer.push(imageData.data[index] > 0 && imageData.data[index + 1] > 0 && imageData.data[index + 2] > 0 ? 1 : 0);
+                } else {
+                    // Điểm đỏ = 1, các màu khác = 0
+                    buffer.push(imageData.data[index] > 0 && imageData.data[index + 1] === 0 && imageData.data[index + 2] === 0 ? 1 : 0);
+                }
+
+                // Cứ đủ 8 pixel (1 byte) thì đóng gói vào mảng
+                if (buffer.length === 8) {
+                    arr.push(parseInt(buffer.join(''), 2));
+                    buffer = [];
+                }
+            }
+            // 4. Xử lý phần padding bit dư ở cuối mỗi hàng (nếu chiều rộng không chia hết cho 8)
+            if (buffer.length > 0) {
+                // Dùng .padEnd() để đệm thêm số '0' vào bên phải cho đủ 8 bit (1 byte)
+                let paddedStr = buffer.join('').padEnd(8, '0');
+                arr.push(parseInt(paddedStr, 2));
+            }
+        }
+        // printCArrayToConsole(arr);
+        return arr;
+    }
+
+    function printCArrayToConsole(byteArray, variableName = "image_data") {
+        const hexString = byteArray.map(b => '0x' + b.toString(16).padStart(2, '0').toUpperCase()).join(', ');
+
+        console.log(`const unsigned char ${variableName}[${byteArray.length}] = {`);
+        console.log(hexString);
+        console.log(`};`);
+    }
+
+    async function sendBufferData(value, type) {
+        addLog(`Starting image send mode:${type}, size ${value.length}byte`);
+        let code = 'ff';
+        if (type === 'bwr') {
+            code = '00';
+        }
+        let cod = '03';
+        if (value.length == 7000 || value.length == 18000) { cod = '04'; }
+        const step = my_step;
+        let partIndex = 0;
+        for (let i = 0; i < value.length; i += step) {
+            addLog(`Sending block ${partIndex + 1} block. Block size: ${step / 2 + 4}byte. Start position: ${i / 2}`);
+            await sendCommand(hexToBytes(cod + code + intToHex(i / 2, 2) + value.substring(i, i + step)));
+            partIndex += 1;
+        }
+    }
+
+    async function upload_image() {
+        // 1. Đọc trạng thái của checkbox lưu ảnh
+        const saveToFlashCheckbox = document.getElementById('save-flash-checkbox');
+        const saveToFlashFlag = saveToFlashCheckbox ? (saveToFlashCheckbox.checked ? 1 : 0) : 0;
+
+        const uploadBtn = document.getElementById('upload-btn'); // Nút "Tải xuống thiết bị" ở Tab 2
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Đang tải ảnh lên...';
+        }
+
+        try {
+            const canvas = document.getElementById('canvas');
+            if (!canvas) throw new Error('Không tìm thấy thẻ canvas!');
+
+            // 1. Lấy mảng byte từ canvas (ví dụ: dùng hàm canvas2bytes_bw đã viết ở trên, xoay 0 độ)
+            // Nếu bạn muốn dùng chế độ màu khác (như bwr), có thể truyền thêm tham số.
+            const imageBytes = canvas2bytes_bw(canvas);
+            const totalSize = imageBytes.length;
+
+            console.log(`Bắt đầu gửi ảnh: ${canvas.width}x${canvas.height}, tổng số byte: ${totalSize}`);
+
+            // 2. Gói tin bắt tay ban đầu (Mã lệnh: 0xb0)
+            let buf = new Uint8Array(136);
+            let view = new DataView(buf.buffer);
+            buf.fill(0xff); // Điền giá trị trống mặc định
+            buf[0] = 0x80;  // Mã lệnh bắt tay truyền ảnh
+            view.setUint32(2, totalSize, true); // Gửi tổng kích thước dữ liệu ảnh
+
+            // Gửi qua Bluetooth (giả định longValue là characteristic Bluetooth đã kết nối)
+            await longValue.writeValue(buf);
+
+            let sent = 0;
+
+            // Lấy các thành phần hiển thị tiến trình (nếu có trên giao diện Tab 2)
+            const progressBar = document.getElementById('img_update_progress_bar');
+            const progressText = document.getElementById('img_update_progress_text');
+
+            // 3. Vòng lặp chia nhỏ dữ liệu thành các block (mỗi block 128 bytes) để gửi
+            for (let i = 0; i < totalSize; i += 128) {
+                buf.fill(0xff);
+                buf[0] = 0x81; // Mã lệnh truyền dữ liệu ảnh liên tục
+                // Ghi biến 'sent' vào 2 byte (buf[1] và buf[2]) theo chuẩn Little-Endian
+                view.setUint16(1, sent, false);
+
+                // Cắt 128 bytes từ mảng byte hình ảnh dán vào buffer (bắt đầu từ vị trí index 8)
+                const chunk = imageBytes.slice(sent, sent + 128);
+                buf.set(chunk, 8);
+                if ((sent + chunk.length) < totalSize){
+                  buf[3] = chunk.length;
+                } else {
+                  buf[3] = totalSize - sent;
+                }
+                await longValue.writeValue(buf);
+                sent += chunk.length;
+
+                // Cập nhật thanh tiến trình (nếu giao diện của bạn có hỗ trợ)
+                const progress = Math.min(Math.round(100 * sent / totalSize), 100);
+                if (progressBar) progressBar.style.width = `${progress}%`;
+                if (progressText) progressText.textContent = `${progress}%`;
+                // console.log(`Đã gửi ${sent}/${totalSize} bytes`);
+                // printCArrayToConsole(buf, 'buf');
+                // `Sending block ${partIndex + 1} block. Block size: ${step / 2 + 4}byte. Start position: ${i /
+            }
+
+            // 4. Gói tin kết thúc quá trình truyền ảnh (Mã lệnh: 0xb4)
+            buf.fill(0);
+            buf[0] = 0x82; // Mã lệnh báo kết thúc, yêu cầu refresh màn hình e-Paper
+            buf[1] = saveToFlashFlag; // Cờ yêu cầu lưu vào bộ nhớ flash của thiết bị
+            await longValue.writeValue(buf);
+
+            console.log('Tải ảnh xuống thiết bị thành công!');
+            if (typeof addLog === 'function') {
+                addLog('Truyền hình ảnh hoàn tất!');
+            }
+
+        } catch (error) {
+            console.log('Lỗi khi truyền ảnh:', error);
+            if (typeof addLog === 'function') {
+                addLog('Lỗi truyền ảnh: ' + error.message);
+            }
+        } finally {
+            // Khôi phục lại trạng thái nút bấm
+            if (uploadBtn) {
+                uploadBtn.innerHTML = '<i class="fa fa-cloud-upload"></i> Tải xuống thiết bị';
+                uploadBtn.disabled = false;
+            }
+        }
+    }
+
+    // Biến lưu trữ ảnh gốc (để khi kéo slider liên tục không bị mất chất lượng ảnh ban đầu)
+    let originalImageObj = null;
+
+    // đọc ảnh gốc từ file
+    document.getElementById('image-file-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                originalImageObj = img; // Lưu lại đối tượng ảnh gốc
+                applyThreshold();      // Vẽ ảnh lên canvas và áp dụng ngưỡng
+                if (typeof addLog === 'function') addLog('Đã tải ảnh lên preview thành công.');
+            }
+            img.src = event.target.result;
+        }
+        reader.readAsDataURL(file);
+    });
+
+    // Hàm xử lý lọc ngưỡng đen trắng
+    function applyThreshold() {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('threshold-slider');
+        const valSpan = document.getElementById('threshold-value');
+
+        const threshold = parseInt(slider.value);
+        if (valSpan) valSpan.textContent = threshold;
+
+        if (!originalImageObj) return;
+
+        const cWidth = canvas.width;
+        const cHeight = canvas.height;
+
+        // 1. Xóa trắng canvas tạm thời
+        ctx.clearRect(0, 0, cWidth, cHeight);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, cWidth, cHeight);
+
+        // 2. Lưu trạng thái Context để thực hiện xoay hệ tọa độ
+        ctx.save();
+        ctx.translate(cWidth / 2, cHeight / 2);
+        ctx.rotate((currentRotation * Math.PI) / 180);
+
+        // Tính toán kích thước sau khi xoay cho phù hợp khung vẽ
+        let drawW = cWidth;
+        let drawH = cHeight;
+        if (currentRotation === 90 || currentRotation === 270) {
+            drawW = cHeight;
+            drawH = cWidth;
+        }
+
+        // Xử lý các chế độ căn chỉnh ảnh (fit mode)
+        let imgW = originalImageObj.width;
+        let imgH = originalImageObj.height;
+        let dX = -drawW / 2;
+        let dY = -drawH / 2;
+        let dW = drawW;
+        let dH = drawH;
+
+        if (imageFitMode === 'contain') {
+            let hRatio = drawW / imgW;
+            let vRatio = drawH / imgH;
+            let ratio = Math.min(hRatio, vRatio);
+            dW = imgW * ratio;
+            dH = imgH * ratio;
+            dX = -dW / 2;
+            dY = -dH / 2;
+        } else if (imageFitMode === '100') {
+            dW = imgW;
+            dH = imgH;
+            dX = -imgW / 2;
+            dY = -imgH / 2;
+        }
+
+        // Vẽ ảnh lên canvas theo chế độ đã chọn
+        ctx.drawImage(originalImageObj, dX, dY, dW, dH);
+        ctx.restore();
+
+        // 3. Quét pixel và lọc ngưỡng đen trắng (Thresholding)
+        const imgData = ctx.getImageData(0, 0, cWidth, cHeight);
+        const data = imgData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+            let gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            let v = gray >= threshold ? 255 : 0;
+
+            data[i]     = v;
+            data[i + 1] = v;
+            data[i + 2] = v;
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    let currentRotation = 0; // Góc xoay hiện tại (0, 90, 180, 270...)
+    let imageFitMode = 'stretch'; // 'stretch' (kéo giãn), 'contain' (vừa khít), '100' (giữ nguyên gốc)
+
+    // 1. Tải lại ảnh gốc từ input file
+    function reloadImage() {
+        const fileInput = document.getElementById('image-file-input');
+        if (fileInput.files && fileInput.files[0]) {
+            // Kích hoạt lại sự kiện change để load lại từ đầu
+            const event = new Event('change');
+            fileInput.dispatchEvent(event);
+        } else {
+            if (typeof addLog === 'function') addLog('Chưa có file ảnh nào được chọn trước đó!');
+        }
+    }
+
+    // 2. Kéo giãn vừa màn hình (mặc định stretch lấp đầy canvas)
+    function fitImageStretch() {
+        imageFitMode = 'stretch';
+        applyThreshold();
+    }
+
+    // 3. Vừa khít màn hình (giữ tỷ lệ ảnh, căn giữa, không bị méo)
+    function fitImageContain() {
+        imageFitMode = 'contain';
+        applyThreshold();
+    }
+
+    // 4. Đặt lại tỷ lệ 100% (vẽ kích thước gốc của ảnh vào giữa canvas)
+    function resetImageScale() {
+        imageFitMode = '100';
+        applyThreshold();
+    }
+
+    // 5. Xoay góc (cộng dồn góc xoay)
+    function rotateImage(angle) {
+        currentRotation = (currentRotation + angle) % 360;
+        if (currentRotation < 0) currentRotation += 360;
+        applyThreshold();
+    }
+
+    // 6. Đặt lại góc xoay về 0
+    function resetImageRotation() {
+        currentRotation = 0;
+        applyThreshold();
+    }
+
+    // Chạy khởi tạo kích thước canvas lần đầu khi load trang
+    window.addEventListener('DOMContentLoaded', () => {
+        updateCanvasSize();
+        disableWatchFaceButtons();
+    });
+
+    // Hàm xử lý khi người dùng bấm chọn một mẫu giao diện
+    async function selectWatchFace(faceId) {
+        console.log(`Đã chọn giao diện đồng hồ số: ${faceId}`);
+        if (typeof addLog === 'function') {
+            addLog(`Đã gửi lệnh đổi giao diện sang mẫu số ${faceId}`);
+        }
+        // Ở đây bạn có thể viết thêm lệnh Bluetooth gửi mã lệnh chọn giao diện xuống thiết bị (nếu có)
+        let buf = new Uint8Array(3);
+        buf.fill(0xff); // Điền giá trị trống mặc định
+        buf[0] = 0x93;  // Mã lệnh bắt tay truyền ảnh
+        buf[1] = faceId;
+        buf[2] = 0x00;
+        // Gửi qua Bluetooth (giả định longValue là characteristic Bluetooth đã kết nối)
+        await longValue.writeValue(buf);
+    }
+
+    // Hàm khóa toàn bộ nút giao diện đồng hồ
+    function disableWatchFaceButtons() {
+        document.querySelectorAll('.watch-face-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            // Thêm dòng này nếu muốn đổi màu sang xám khi bị disable
+            btn.classList.remove('bg-amber-500', 'hover:bg-amber-600');
+            btn.classList.add('bg-gray-400');
+        });
+
+        // Khóa nút "Tải xuống thiết bị"
+        const uploadBtn = document.getElementById('upload-btn');
+        if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        const upFwBtn = document.getElementById('upfirm-button');
+        if (upFwBtn) {
+            upFwBtn.disabled = true;
+            upFwBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        // // Khóa các nút giao diện đồng hồ (Tab 4)
+        // document.querySelectorAll('.watch-face-btn').forEach(btn => {
+        //     btn.disabled = true;
+        //     btn.classList.add('opacity-50', 'cursor-not-allowed');
+        // });
+
+    }
+
+    // Hàm mở khóa lại khi thiết bị đã kết nối thành công
+    function enableWatchFaceButtons() {
+        document.querySelectorAll('.watch-face-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+            btn.classList.add('bg-amber-500', 'hover:bg-amber-600');
+        });
+
+        // Mở khóa nút "Tải xuống thiết bị"
+        const uploadBtn = document.getElementById('upload-btn');
+        if (uploadBtn) {
+            uploadBtn.disabled = false;
+            uploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+
+        const upFwBtn = document.getElementById('upfirm-button');
+        if (upFwBtn) {
+            upFwBtn.disabled = false;
+            upFwBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    // Danh sách các bản Firmware
+    const firmwareList = [
+      {
+        no: 1,
+        version: "0.7",
+        desc: "Phiên bản đầu tiên, hỗ trợ 14 chế độ hiển thị cơ bản và truyền hình ảnh.<br><em class='text-amber-700 text-xs block mt-1'>* Lưu ý: anh em nào đang ở phiên bản <strong class='font-bold text-sm text-amber-900'>v0.7</strong> này nếu muốn lên bản cao hơn hỗ trợ đầy đủ các font, vui lòng thực hiện cập nhật lên phiên bản <strong class='font-bold text-sm text-amber-900'>v0.8</strong> trước, sau đó mới tiếp tục cập nhật tiếp lên phiên bản mong muốn.</em>",
+        date: "23/08/2026",
+        url: "firmware/ONE-2.13L-V0.7.bin",
+        active: true
+      },
+      {
+        no: 2,
+        version: "0.8",
+        desc: "Phiên bản 0.8.<br>- Bản vá sửa lỗi OTA cho phép update lên các phiên cao hơn.<br>- Bổ sung giao diện số 15 (Super Mario).",
+        date: "31/08/2026",
+        url: "firmware/ONE-2.13L-V0.8.bin",
+        active: true
+      },
+      {
+        no: 3,
+        version: "0.9",
+        desc: "Phiên bản 0.9.<br>- Bổ sung 04 mẫu mặt đồng hồ số mới.",
+        date: "03/09/2026",
+        url: "firmware/ONE-2.13L-V0.9.bin",
+        active: true
+      },
+      {
+        no: 4,
+        version: "1.0",
+        desc: "Phiên bản 1.0<br>- Thêm cài đặt về định dạng giờ 12/24h.<br>- Thêm cài đặt lưới cho lịch tháng.<br>- Bổ sung một số chế độ màn hình dọc.",
+        date: "07/09/2026<br>(dự kiến)",
+        url: "firmware/ONE-2.13L-V1.0.bin",
+        active: false
+      },
+      {
+        no: 5,
+        version: "1.1",
+        desc: "Phiên bản 1.1.<br>- Bổ sung chế độ màn hình tự thiết kế.",
+        date: "15/09/2026<br>(dự kiến)",
+        url: "firmware/ONE-2.13L-V1.1.bin",
+        active: false
+      }
+
+    ];
+
+    let isBleConnected = false;
+
+    function renderFirmwareTable() {
+      const container = document.getElementById("fw-list-container");
+
+      // 1. Giao diện Card cho Mobile (ẩn trên PC: md:hidden)
+      const mobileCardsHtml = `
+        <div class="flex flex-col gap-3 md:hidden">
+          ${firmwareList.map(fw => `
+            <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-xs">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">#${fw.no}</span>
+                  <span class="text-base font-bold text-slate-800">ONE-2.13L-V${fw.version}</span>
+                </div>
+                <span class="text-xs text-slate-400">${fw.date}</span>
+              </div>
+
+              <div class="text-xs text-slate-600 leading-relaxed my-2">
+                ${fw.desc}
+              </div>
+
+              <div class="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
+                <button onclick="installFirmware('${fw.url}', '${fw.version}')"
+                        data-active="${fw.active === true}"
+                        ${(!isBleConnected || !fw.active) ? 'disabled' : ''}
+                        class="btn-install bg-purple-600 hover:bg-purple-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold px-4 py-1.5 rounded-full text-xs transition shadow-xs">
+                  Update ngay
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // 2. Giao diện Bảng cho PC/Tablet (ẩn trên Mobile: hidden md:block)
+      const desktopTableHtml = `
+        <div class="hidden md:block overflow-x-auto border border-slate-200 rounded-xl">
+          <table class="w-full text-left text-sm text-slate-600 border-collapse">
+            <thead class="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+              <tr class="divide-x divide-slate-200">
+                <th class="p-3.5 w-12 text-center">STT</th>
+                <th class="p-3.5 w-20 text-center">Phiên bản</th>
+                <th class="p-3.5 text-center">Mô tả</th>
+                <th class="p-3.5 w-32 whitespace-nowrap text-center">Ngày phát hành</th>
+                <th class="p-3.5 w-28 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+              ${firmwareList.map(fw => `
+                <tr class="hover:bg-sky-50/30 transition-colors divide-x divide-slate-200">
+                  <td class="p-3.5 text-center text-slate-400 font-medium">${fw.no}</td>
+                  <td class="p-3.5 font-bold text-slate-400 whitespace-nowrap">ONE-2.13L-V${fw.version}</td>
+                  <td class="p-3.5 text-slate-600 leading-relaxed">${fw.desc}</td>
+                  <td class="p-3.5 text-slate-500">${fw.date}</td>
+                  <td class="p-3.5 text-center">
+                    <button onclick="installFirmware('${fw.url}', '${fw.version}')"
+                            data-active="${fw.active === true}"
+                            ${(!isBleConnected || !fw.active) ? 'disabled' : ''}
+                            class="btn-install bg-purple-600 hover:bg-purple-700 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-medium px-4 py-1.5 rounded-full text-xs transition shadow-xs">
+                      Update ngay
+                    </button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      container.innerHTML = mobileCardsHtml + desktopTableHtml;
+    }
+    renderFirmwareTable();
+
+    function setFirmwareButtonsState(enabled) {
+      isBleConnected = enabled;
+      const buttons = document.querySelectorAll('.btn-install');
+      buttons.forEach(btn => {
+        // Đọc cờ data-active đã lưu trên thẻ
+        const isFwActive = btn.dataset.active === 'true';
+
+        // Chỉ enable nếu Bluetooth kết nối VÀ firmware được active
+        btn.disabled = !(enabled && isFwActive);
+      });
+    }
+
+    // Cập nhật UI thanh tiến trình
+    function updateProgressUI(percent, message) {
+      const progressBar = document.getElementById('ota-progress-bar');
+      const percentText = document.getElementById('ota-percent');
+      const statusText = document.getElementById('ota-status-text');
+
+      progressBar.style.width = `${percent}%`;
+      percentText.innerText = `${percent}%`;
+      if (message) statusText.innerText = message;
+    }
+
+    async function installFirmware(fileUrl, version) {
+      const progressSection = document.getElementById('ota-progress-section');
+      const statusText = document.getElementById('ota-status-text');
+      const progressBar = document.getElementById('ota-progress-bar');
+      const percentText = document.getElementById('ota-percent');
+
+      if (!confirm('Cài firmware phiên bản ' + version + ' vào thiết bị đang kết nối?' + String.fromCharCode(10) +
+               'Thiết bị sẽ khởi động lại sau khi cập nhật hoàn tất.' + String.fromCharCode(10) +
+               ' Tuyệt đối: ' + String.fromCharCode(10) +
+               '   - KHÔNG tắt nguồn giữa chừng' + String.fromCharCode(10) +
+               '   - KHÔNG thoát trang web giữa chừng')) return;
+
+      let firm_buf, firm_size;
+      let finished = false;
+
+      try {
+
+        document.querySelectorAll('.btn-install').forEach(btn => btn.disabled = true);
+
+        progressSection.classList.remove('hidden');
+        updateProgressUI(0, `Đang tải bản Firmware v${version} từ máy chủ...`);
+
+        const response = await fetch(fileUrl);
+        if (!response.ok) throw new Error("Không thể tải file firmware từ server");
+        const abuf = await response.arrayBuffer();
+
+        firm_buf = new Uint8Array(abuf);
+        firm_size = abuf.byteLength;
+
+        const data_magic = new Uint8Array([0x14, 0x07, 0x19, 0x90, 0xEB, 0xF8, 0xE6, 0x6F]);
+
+        let data_pos = find_patten(firm_buf, data_magic);
+        let data_buf = null;
+        let data_size = 0;
+        let has_data = false;
+
+        if (data_pos != -1) {
+          has_data = true;
+
+          let data_offset = data_pos + 8;
+          data_buf = firm_buf.slice(data_offset);
+          data_size = data_buf.length;
+
+          firm_buf = firm_buf.slice(0, data_pos);
+          firm_size = firm_buf.length;
+        }
+
+        let firm_magic = new Uint8Array([0x79, 0x13, 0xa5, 0xf9, 0x86, 0xec, 0x5a, 0x06]);
+        let pos = find_patten(firm_buf, firm_magic);
+        if (pos == -1) {
+          console.log('Firmware không hợp lệ: Không tìm thấy số phiên bản!');
+          throw new Error("Firmware không hợp lệ: Không tìm thấy số phiên bản!");
+        }
+
+        let major = firm_buf[pos + 9];
+        let minor = firm_buf[pos + 8];
+        let firm_ver = firm_buf[pos + 9] * 256 + firm_buf[pos + 8];
+        let firm_crc = CRC32.buf(firm_buf);
+
+        console.log(`firmware version ${major}.${minor} - kích cỡ: ${firm_size} - CRC: ${(firm_crc >>> 0).toString(16)}`);
+
+        let buf = new Uint8Array(136);
+        let view = new DataView(buf.buffer);
+        buf[0] = 0xa0;
+        view.setUint16(2, firm_size, true);
+        await longValue.writeValue(buf);
+
+        let sent = 0;
+        const totalSize = firm_size + 64;
+
+        for (let i = 0; i < totalSize; i += 256) {
+          buf.fill(0xff);
+          if (i === 0) {
+            view.setUint32(8, 0x00aa5170, true);
+            view.setUint32(12, firm_size, true);
+            view.setUint32(16, firm_crc, true);
+            view.setUint32(36, 0xa50f0000 + firm_ver, true);
+            buf[40] = 0;
+            buf[0] = 0xa2;
+            buf.set(firm_buf.slice(sent, sent + 64), 72);
+            await longValue.writeValue(buf);
+            sent += 64;
+          } else {
+            buf[0] = 0xa2;
+            buf.set(firm_buf.slice(sent, sent + 128), 8);
+            await longValue.writeValue(buf);
+            sent += 128;
+          }
+          buf[0] = 0xa3;
+          buf.set(firm_buf.slice(sent, sent + 128), 8);
+          await longValue.writeValue(buf);
+          sent += 128;
+
+          // 更新进度条
+          const progress = Math.min(Math.round(100 * sent / (totalSize + data_size)), 100);
+          updateProgressUI(progress, `Đang cài đặt Firmware v${version} ...`);
+        }
+
+        if (has_data === true)
+        {
+          buf.fill(0xff);
+          buf[0] = 0x60;
+          view.setUint16(2, data_size, true);
+          await longValue.writeValue(buf);
+          let data_sent = 0;
+
+          for (let i = 0; i < data_size; i += 256) {
+            buf.fill(0xff);
+            buf[0] = 0x61;
+            buf.set(data_buf.slice(data_sent, data_sent + 128), 8);
+            await longValue.writeValue(buf);
+            data_sent += 128;
+
+            buf.fill(0xff);
+            buf[0] = 0x62;
+            buf.set(data_buf.slice(data_sent, data_sent + 128), 8);
+            await longValue.writeValue(buf);
+            data_sent += 128;
+
+            // Update status
+            const progress = Math.min(Math.round(100 * (sent + data_sent) / (totalSize + data_size)), 100);
+            updateProgressUI(progress, `Đang cài đặt Firmware v${version} ...`);
+          }
+        }
+
+        finished = true;
+
+        console.log('Đã gửi hết dữ liệu, gửi lệnh khởi động lại thiết bị...');
+        updateProgressUI(100, `Hoàn thành!`);
+        /* Đoạn này là gửi lệnh reset thiết bị */
+        buf[0] = 0xa4;
+        buf.fill(0, 1, 4);
+        await longValue.writeValue(buf);
+      } catch (error) {
+        if (finished != true) {
+          console.error("Lỗi cập nhật:", error);
+          updateProgressUI(0, `Lỗi: ${error.message}`);
+          alert(`Cập nhật thất bại: ${error.message}`);
+        }
+      }
+    }
+
+  </script>
+</body>
+</html>
