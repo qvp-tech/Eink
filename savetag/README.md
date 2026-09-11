@@ -144,7 +144,7 @@ GND          ─────────────→  GND
 - **KHÔNG** nối 5V hay 3.3V từ ESP32-C3 sang thẻ e-ink
 - Thẻ e-ink **PHẢI có nguồn** (giữ nguyên pin hoặc cấp 3.3V ngoài + nối chung GND)
 - Nếu tháo pin thẻ e-ink mà chỉ nối TX/RX/GND → thẻ mất điện hoàn toàn → không hoạt động
-- **Mức Logic 3.3V**: Đảm bảo mạch nạp (CP2102/CH340) đang ở chế độ **3.3V** (thường có jumper trên mạch). Nếu đang ở 5V → tín hiệu đẩy vào VRX có thể **chân GPIO hoặc cháy vi điều khiển**
+- ESP32-C3 mặc định hoạt động ở mức logic 3.3V, không cần jumper chuyển đổi
 
 #### Bước 1: Cài Arduino IDE
 1. Tải: https://www.arduino.cc/en/software
@@ -190,19 +190,12 @@ void setup() {
 }
 
 void loop() {
-  // Đọc toàn bộ dữ liệu từ PC → Thẻ e-ink
   if (Serial.available()) {
-    while (Serial.available()) {
-      Serial1.write(Serial.read());
-    }
+    Serial1.write(Serial.read());
     digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Nháy LED báo hiệu đang có dữ liệu truyền qua lại
   }
-
-  // Đọc toàn bộ dữ liệu từ Thẻ e-ink → PC
   if (Serial1.available()) {
-    while (Serial1.available()) {
-      Serial.write(Serial1.read());
-    }
+    Serial.write(Serial1.read());
   }
 }
 ```
@@ -210,8 +203,8 @@ void loop() {
 #### Bước 4: Mở Serial Monitor
 1. **Tools → Port** → chọn COM của ESP32-C3
 2. **Tools → Serial Monitor** → chọn **115200 baud**
-3. Bấm **RST** trên thẻ e-ink
-4. Xem có text hiện ra không?
+3. **Đưa thẻ vào chế độ Bootloader:** Giữ chân M1 (hoặc M2) xuống GND → bấm nhả chân RST → thả chân M1/M2
+4. Xem trên Serial Monitor có thông báo chip đã sẵn sàng không
 
 #### Bước 5: Flash firmware
 Nếu Serial Monitor hiện text → chip còn sống!
