@@ -169,21 +169,30 @@ Các tùy chọn khác:
 #define BAUD  115200
 
 void setup() {
-  Serial.begin(BAUD);        // USB CDC (máy tính)
-  Serial1.begin(BAUD, SERIAL_8N1, RX_PIN, TX_PIN); // UART thẻ e-ink
+  Serial.begin(BAUD);       // USB CDC (máy tính)
+
+  // Dùng setPins() trước begin() để tương thích cả core ESP32 v2.x và v3.x
+  Serial1.setPins(RX_PIN, TX_PIN);
+  Serial1.begin(BAUD);
+
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW); // LED sáng (Active LOW)
 }
 
 void loop() {
-  // Máy tính → Thẻ e-ink
+  // Đọc toàn bộ dữ liệu từ PC → Thẻ e-ink
   if (Serial.available()) {
-    Serial1.write(Serial.read());
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // nhấp nháy LED
+    while (Serial.available()) {
+      Serial1.write(Serial.read());
+    }
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // nháy LED 1 lần cho cả khối
   }
-  // Thẻ e-ink → Máy tính
+
+  // Đọc toàn bộ dữ liệu từ Thẻ e-ink → PC
   if (Serial1.available()) {
-    Serial.write(Serial1.read());
+    while (Serial1.available()) {
+      Serial.write(Serial1.read());
+    }
   }
 }
 ```
