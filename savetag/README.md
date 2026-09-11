@@ -75,6 +75,8 @@ GND     ────────────────  GND
                           (KHÔNG nối VCC/5V/3.3V)
 ```
 
+⚠️ **Mức Logic 3.3V**: Đảm bảo USB-TTL đang ở chế độ **3.3V** (thường có jumper trên mạch). Nếu đang ở 5V → tín hiệu đẩy vào VRX có thể **làm hỏng GPIO hoặc cháy vi điều khiển**.
+
 #### Thực hiện:
 1. Ngắt toàn bộ nguồn thẻ e-ink (tháo pin/battery)
 2. Nối dây UART (TX→VRX, RX→VTX, GND→GND)
@@ -83,6 +85,13 @@ GND     ────────────────  GND
 5. Cắm nguồn lại
 6. Thả RST/M1
 7. Xem Serial Monitor có output không
+
+⚠️ **Nếu Serial Monitor có output nhưng flash không được:**
+Vi điều khiển cần ở chế độ **Bootloader/Download** để nhận firmware.
+Thử kết hợp:
+- **Giữ M1 (hoặc M2) xuống GND** → giữ RST xuống GND → cắm nguồn → thả RST → thả M1/M2
+- Hoặc: **Giữ M1/M2 xuống 3.3V** rồi làm tương tự
+- Thử lần lượt M1 và M2 vì mỗi loại chip có pin boot khác nhau
 
 #### Flash firmware:
 Nếu có output → chip còn sống → dùng phần mềm flash:
@@ -135,6 +144,7 @@ GND          ─────────────→  GND
 - **KHÔNG** nối 5V hay 3.3V từ ESP32-C3 sang thẻ e-ink
 - Thẻ e-ink **PHẢI có nguồn** (giữ nguyên pin hoặc cấp 3.3V ngoài + nối chung GND)
 - Nếu tháo pin thẻ e-ink mà chỉ nối TX/RX/GND → thẻ mất điện hoàn toàn → không hoạt động
+- **Mức Logic 3.3V**: Đảm bảo mạch nạp (CP2102/CH340) đang ở chế độ **3.3V** (thường có jumper trên mạch). Nếu đang ở 5V → tín hiệu đẩy vào VRX có thể **chân GPIO hoặc cháy vi điều khiển**
 
 #### Bước 1: Cài Arduino IDE
 1. Tải: https://www.arduino.cc/en/software
@@ -185,7 +195,7 @@ void loop() {
     while (Serial.available()) {
       Serial1.write(Serial.read());
     }
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // nháy LED 1 lần cho cả khối
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Nháy LED báo hiệu đang có dữ liệu truyền qua lại
   }
 
   // Đọc toàn bộ dữ liệu từ Thẻ e-ink → PC
@@ -222,6 +232,7 @@ GND  ───────────────→   GND
 ```
 
 #### Lưu ý:
+- **Mức Logic 3.3V**: Đảm bảo CH341A đang ở chế độ **3.3V** (thường có jumper). Nếu đang ở 5V → **cháy vi điều khiển**
 - CH341A **không hỗ trợ SWD** → chỉ flash được qua UART bootloader
 - Nếu bootloader bị brick → cần ST-Link
 
