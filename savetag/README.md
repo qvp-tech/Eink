@@ -38,7 +38,7 @@ Code web đã được sửa để **không cho update firmware trên thiết b�
 | VTX | UART Transmit | Nối RX từ programmer |
 | VBAT | Nguồn pin | Cấp nguồn 3.3V |
 | SWDIO | SWD Data | Debug ARM |
-| SWDIO | SWD Clock | Debug ARM |
+| SWCLK | SWD Clock | Debug ARM |
 | M1 | Mode 1 / Test point | Có thể dùng boot mode |
 | M2 | Mode 2 / Test point | Có thể dùng boot mode |
 
