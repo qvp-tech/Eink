@@ -849,15 +849,97 @@
 
         // 2. Chuyển UUID 16-bit sang dạng chuỗi chuẩn 128-bit Base UUID của Bluetooth SIG
         // 0xff00 -> 0000ff00-0000-1000-8000-00805f9b34fb
-        const SVC_UUID   = '0000ff00-0000-1000-8000-00805f9b34fb';
-        const CHAR_CTRL  = '0000ff03-0000-1000-8000-00805f9b34fb';
-        const CHAR_ADC   = '0000ff02-0000-1000-8000-00805f9b34fb';
-        const CHAR_LONG  = '0000ff01-0000-1000-8000-00805f9b34fb';
-
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: [ SVC_UUID ]
+          optionalServices: [
+            '0000ff00-0000-1000-8000-00805f9b34fb',
+            '0000221f-0000-1000-8000-00805f9b34fb',
+            '00001f10-0000-1000-8000-00805f9b34fb',
+            '13187b10-eba9-a3ba-044e-83d3217d9a38'
+          ]
         });
+        console.log('Tên thiết bị:', device.name);
+        document.getElementById('device_name').textContent = device.name;
+        device.ongattserverdisconnected = onDisconnect;
+
+        let server = await device.gatt.connect();
+        console.log('Đã kết nối thiết bị');
+
+        // Thử tìm service theo thứ tự ưu tiên
+        let service = null;
+        const serviceUUIDs = [
+          '0000ff00-0000-1000-8000-00805f9b34fb',
+          '0000221f-0000-1000-8000-00805f9b34fb',
+          '00001f10-0000-1000-8000-00805f9b34fb',
+          '13187b10-eba9-a3ba-044e-83d3217d9a38'
+        ];
+        for (const uuid of serviceUUIDs) {
+          try {
+            service = await server.getPrimaryService(uuid);
+            console.log('Đã tìm thấy service:', uuid);
+            break;
+          } catch (e) {
+            console.log('Service', uuid, 'không tồn tại, thử tiếp...');
+          }
+        }
+        if (!service) throw new Error('Không tìm thấy service Bluetooth nào phù hợp!');
+
+        // Tìm characteristic phù hợp
+        let ctrlPoint = null, adc1Value = null, longValueChar = null;
+        const charUUIDs = [
+          '0000ff03-0000-1000-8000-00805f9b34fb',
+          '0000ff02-0000-1000-8000-00805f9b34fb',
+          '0000ff01-0000-1000-8000-00805f9b34fb',
+          '00001f1f-0000-1000-8000-00805f9b34fb',
+          '4b646063-6264-f3a7-8941-e65356ea82fe'
+        ];
+        for (const uuid of charUUIDs) {
+          try {
+            const ch = await service.getCharacteristic(uuid);
+            if (!ctrlPoint) ctrlPoint = ch;
+            else if (!adc1Value) adc1Value = ch;
+            else if (!longValueChar) longValueChar = ch;
+            console.log('Đã tìm thấy characteristic:', uuid);
+          } catch (e) {}
+        }
+        if (longValueChar) longValue = longValueChar;
+
+        // Đọc điện áp nếu có characteristic phù hợp
+        if (adc1Value) {
+          try {
+            let cur_voltage = await adc1Value.readValue();
+            console.log('Điện áp hiện tại:', cur_voltage.getUint16(0, true) / 1000 + 'V');
+            document.getElementById('current_voltage').textContent = (cur_voltage.getUint16(0, true) / 1000).toFixed(2) + ' V';
+          } catch (e) {}
+        }
+
+        // Đọc thời gian và firmware version
+        if (longValue) {
+          let cur_time = await longValue.readValue();
+          let year = cur_time.getUint16(0, true),
+              month = cur_time.getUint8(2),
+              mday = cur_time.getUint8(3),
+              hour = cur_time.getUint8(4),
+              minute = cur_time.getUint8(5),
+              second = cur_time.getUint8(6);
+
+          let fwVersionText = "0.7";
+          if (cur_time.byteLength >= 13) {
+              let major = cur_time.getUint8(11);
+              let minor = cur_time.getUint8(12);
+              fwVersionText = `${major}.${minor}`;
+          }
+          document.getElementById('device_fw_version').textContent = fwVersionText;
+
+          deviceTimeBase = {
+            year, month, mday, hour, minute, second,
+            timestamp: new Date()
+          };
+
+          updateDeviceTime();
+          if (deviceTimeInterval) clearInterval(deviceTimeInterval);
+          deviceTimeInterval = setInterval(updateDeviceTime, 1000);
+        }
         console.log('Tên thiết bị:', device.name);
         document.getElementById('device_name').textContent = device.name;
         device.ongattserverdisconnected = onDisconnect;
@@ -870,50 +952,12 @@
         let adc1Value = await service.getCharacteristic(CHAR_ADC);
         longValue = await service.getCharacteristic(CHAR_LONG);
 
-        let cur_voltage = await adc1Value.readValue();
-        console.log('Điện áp hiện tại:', cur_voltage.getUint16(0, true) / 1000 + 'V');
-        document.getElementById('current_voltage').textContent = (cur_voltage.getUint16(0, true) / 1000).toFixed(2) + ' V';
-
-        let cur_time = await longValue.readValue();
-        let year = cur_time.getUint16(0, true),
-            month = cur_time.getUint8(2),
-            mday = cur_time.getUint8(3),
-            hour = cur_time.getUint8(4),
-            minute = cur_time.getUint8(5),
-            second = cur_time.getUint8(6);
-
-        let fwVersionText = "0.7"; // Giá trị hiển thị mặc định nếu là FW cũ
-
-        // Kiểm tra độ dài tối thiểu 13 bytes trước khi đọc
-        if (cur_time.byteLength >= 13) {
-            let major = cur_time.getUint8(11);
-            let minor = cur_time.getUint8(12);
-
-            fwVersionText = `${major}.${minor}`;
-        }
-        document.getElementById('device_fw_version').textContent = fwVersionText;
-
-
-        // 保存设备时间基准值和当前时间戳
-        deviceTimeBase = {
-          year, month, mday, hour, minute, second,
-          timestamp: new Date()
-        };
-
-        // 立即更新设备时间显示
-        updateDeviceTime();
-
-        // 设置定时器每秒更新一次设备时间
-        if (deviceTimeInterval) clearInterval(deviceTimeInterval);
-        deviceTimeInterval = setInterval(updateDeviceTime, 1000);
-
+        connected = true;
         let now = new Date();
         document.getElementById('system_time').textContent = formatTime(
           now.getFullYear(), now.getMonth(), now.getDate(),
           now.getHours(), now.getMinutes(), now.getSeconds()
         );
-
-        connected = true;
         document.getElementById('setime-button').disabled = false;
         document.getElementById('upfirm-button').disabled = false;
         document.getElementById('send90-button').disabled = false;
