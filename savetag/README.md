@@ -131,6 +131,22 @@ GND    ────────────   GND
 - Không cần mua thêm thiết bị (nếu đã có ESP32-C3)
 - Tự làm UART bridge bằng code
 
+#### Cấu hình chân ESP32-C3 Super Mini:
+
+```
+Hàng 1 (trên):                Hàng 2 (dưới):
+┌──────────────────┐          ┌──────────────────┐
+│ 5V   — Nguồn 5V │          │ 5  (GPIO5)  SCL  │
+│ G    — GND       │          │ 6  (GPIO6)  SPI  │
+│ 3.3  — Nguồn 3.3V│         │ 7  (GPIO7)  SPI  │
+│ 4    — GPIO4 SDA │          │ 8  (GPIO8)  Strapping │
+│ 3    — GPIO3 ADC │          │ 9  (GPIO9)  BOOT │
+│ 2    — GPIO2 ADC │          │ 10 (GPIO10) PWM  │
+│ 1    — GPIO1 ADC │          │ 20 (GPIO20) RX ← │
+│ 0    — GPIO0 ADC │          │ 21 (GPIO21) TX → │
+└──────────────────┘          └──────────────────┘
+```
+
 #### Nối dây:
 ```
 ESP32-C3 Super Mini          Thẻ e-ink
@@ -175,7 +191,7 @@ Các tùy chọn khác:
 
 #define RX_PIN 20  // GPIO20 RX
 #define TX_PIN 21  // GPIO21 TX
-#define LED_PIN 8  // GPIO8 = LED onboard (Active LOW)
+#define LED_PIN 8  // GPIO8 = LED onboard (Active LOW) — nếu LED không sáng, thử GPIO2
 #define BAUD  115200
 
 void setup() {
