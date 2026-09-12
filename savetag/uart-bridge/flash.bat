@@ -1,4 +1,6 @@
 @echo off
+set PIO=C:\Users\Admin\AppData\Roaming\Python\Python314\Scripts\pio.exe
+
 echo ========================================
 echo   ESP32-C3 UART Bridge - Flash Tool
 echo   Cuu the e-ink bi brick
@@ -13,27 +15,10 @@ echo ⚠️  KHONG noi 5V/3.3V sang the e-ink
 echo ⚠️  The e-ink PHAI co nguon (giu pin hoac cap 3.3V ngoai)
 echo.
 echo ========================================
-echo Dang kiem tra COM port...
-echo.
-
-REM Tim COM port tu dong
-for /f "tokens=1" %%a in ('mode ^| findstr "COM"') do (
-    set COMPORT=%%a
-    goto :found
-)
-
-echo Khong tim thay COM port nao!
-echo Hay cam ESP32-C3 vao may tinh.
-pause
-exit /b 1
-
-:found
-echo Tim thay: %COMPORT%
-echo.
 echo Dang flash firmware...
 echo.
 
-pio run -t upload --environment esp32c3
+%PIO% run -t upload --environment esp32c3
 
 if %errorlevel% neq 0 (
     echo.
@@ -45,11 +30,6 @@ if %errorlevel% neq 0 (
 ) else (
     echo.
     echo ✅ Flash thanh cong!
-    echo.
-    echo Buoc tiep theo:
-    echo   1. Noi day: GPIO21→VRX, GPIO20←VTX, GND→GND
-    echo   2. Mo Serial Monitor: pio device monitor
-    echo   3. Giu M1 + nhan RST the e-ink de vao Bootloader
 )
 
 echo.
